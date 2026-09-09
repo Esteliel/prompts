@@ -334,7 +334,10 @@
 
   function toggleImageFields() {
     var isImage = formKind.value === 'image';
-    Array.prototype.forEach.call(imageFields, function (field) { field.hidden = !isImage; });
+    Array.prototype.forEach.call(imageFields, function (field) {
+      field.hidden = !isImage;
+      field.style.display = isImage ? '' : 'none';
+    });
   }
 
   function renderFormImages() {
