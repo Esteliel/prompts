@@ -4,6 +4,12 @@
 
 页面将普通提示词与绘画提示词分开管理。绘画提示词可以记录完整提示词或画风、角色、动作、服装等单项提示词，并标注模型、自然语言 / Danbooru 标签格式和示例图片。
 
+## 维护网站内置提示词
+
+网站内置提示词集中维护在 [`assets/js/prompts.js`](assets/js/prompts.js) 顶部的 `seedPrompts` 数组。新增对象时填写 `id`、`title`、`category`、`tags`、`description` 和 `content`；绘画提示词再补充 `kind: 'image'`、`promptPart`、`model` 与 `syntax`。发布后，新增内置项会自动合并到已有用户的本地列表和云端列表，不会覆盖用户的自定义提示词。
+
+内置项只能复制为自定义提示词后编辑或删除；它们不会写入用户的 Supabase 数据，也不会参与云端删除同步。
+
 ## 初始化 Supabase
 
 1. 在 Supabase SQL Editor 执行 [`supabase/prompts.sql`](supabase/prompts.sql)。脚本会为已有的 `prompts` 表补充绘画字段，并创建私有的 `prompt-examples` Storage bucket 及对应的用户隔离策略。

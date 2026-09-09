@@ -3,6 +3,7 @@
 
   var STORAGE_KEY = 'esteliel.prompt-manager.v1';
   var LOCAL_OWNER_KEY = STORAGE_KEY + '.owner';
+  // 网站内置提示词：新增条目会在发布后自动合并到已有用户，勿复用现有 id。
   var seedPrompts = [
     {
       id: 'writing-polish',
@@ -20,6 +21,35 @@
       description: '将零散的会议记录整理成可执行的纪要。',
       content: '请把下面的会议记录整理成结构清晰的会议纪要。\n\n输出格式：\n- 会议主题\n- 关键结论\n- 待办事项（负责人 / 截止时间 / 状态）\n- 待确认问题\n\n不要猜测记录中没有出现的信息；缺失内容请标记为“待补充”。\n\n会议记录：\n{{在这里粘贴记录}}'
     },
+    {
+      id: 'code-review',
+      title: '代码审查助手',
+      category: '编程',
+      tags: ['代码', '审查'],
+      description: '检查代码质量、潜在问题和改进方向。',
+      content: '请审查下面的代码，指出问题并给出改进建议：\n\n{{粘贴代码}}'
+    },
+    {
+      id: 'linux-Terminal',
+      title: 'linux终端',
+      category: '编程',
+      tags: ['终端', '命令'],
+      description: '模拟linux终端，执行命令并返回结果。',
+      content: '我想让你扮演一个linux终端。我将键入命令，您将回复终端应该显示的内容。我希望您只回复一个唯一代码块内的终端输出，而不是其他任何内容。不要写解释。不要键入命令，除非我指示你这样做。当我需要用英语告诉你一些事情时，我会把文本放在{像这样}的大括号里。我的第一个命令是pwd'
+    },
+    {
+      id: 'anime-style',
+      title: '二次元画风',
+      category: '绘画',
+      tags: ['画风', '二次元'],
+      description: '适用于动漫风格绘图。',
+      content: 'anime style, detailed illustration, anime_coloring, clean_lineart, soft_shading, delicate_details, pastel_colors, smooth_color_gradients',
+      kind: 'image',
+      promptPart: 'style',
+      model: 'SDXL',
+      syntax: 'danbooru'
+    },
+
     {
       id: 'idea-expander',
       title: '把想法变成计划',
@@ -76,6 +106,11 @@
     other: '其他'
   };
   var DEFAULT_CATEGORIES = ['编程', '办公', '角色卡', '语言', '教育', '设计', '绘画'];
+  var BUILTIN_PROMPT_IDS = Object.create(null);
+  seedPrompts.forEach(function (prompt) { BUILTIN_PROMPT_IDS[prompt.id] = true; });
+  var BUILTIN_PROMPTS = seedPrompts.map(function (prompt) {
+    return normalizePrompt(Object.assign({}, prompt, { isBuiltin: true }));
+  }).filter(Boolean);
 
   var localState = readLocalPrompts();
   var state = {
@@ -99,13 +134,31 @@
       if (saved !== null) {
         var parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          return { prompts: parsed.map(normalizePrompt).filter(Boolean), persisted: true, owner: window.localStorage.getItem(LOCAL_OWNER_KEY) || '' };
+          return { prompts: mergeBuiltinPrompts(parsed.map(normalizePrompt).filter(Boolean)), persisted: true, owner: window.localStorage.getItem(LOCAL_OWNER_KEY) || '' };
         }
       }
     } catch (error) {
       // Private browsing and disabled storage should not make the page unusable.
     }
-    return { prompts: seedPrompts.map(normalizePrompt), persisted: false, owner: '' };
+    return { prompts: BUILTIN_PROMPTS.slice(), persisted: false, owner: '' };
+  }
+
+  function mergeBuiltinPrompts(prompts) {
+    var merged = Object.create(null);
+    (prompts || []).forEach(function (prompt) {
+      if (prompt) merged[prompt.id] = prompt;
+    });
+    BUILTIN_PROMPTS.forEach(function (prompt) {
+      var current = merged[prompt.id];
+      if (!current || current.isBuiltin) merged[prompt.id] = prompt;
+    });
+    return Object.keys(merged).map(function (id) { return merged[id]; }).sort(function (a, b) {
+      return dateValue(b.updatedAt) - dateValue(a.updatedAt);
+    });
+  }
+
+  function getUserPrompts(prompts) {
+    return (prompts || state.prompts).filter(function (prompt) { return !prompt.isBuiltin; });
   }
 
   function savePrompts() {
@@ -123,6 +176,7 @@
 
   function normalizePrompt(prompt) {
     if (!prompt || typeof prompt !== 'object') return null;
+    var id = String(prompt.id || createId());
     var title = String(prompt.title || '').trim();
     var content = String(prompt.content || '').trim();
     if (!title || !content) return null;
@@ -133,7 +187,7 @@
     var syntax = Object.prototype.hasOwnProperty.call(SYNTAX_LABELS, prompt.syntax) ? prompt.syntax : 'natural_language';
     var exampleImages = Array.isArray(prompt.exampleImages) ? prompt.exampleImages.map(normalizeImage).filter(Boolean).slice(0, 8) : [];
     return {
-      id: String(prompt.id || createId()),
+      id: id,
       title: title.slice(0, 80),
       category: String(prompt.category || '未分类').trim().slice(0, 30) || '未分类',
       tags: tags.map(function (tag) { return String(tag).trim(); }).filter(Boolean).filter(unique).slice(0, 12),
@@ -144,6 +198,7 @@
       model: kind === 'image' ? String(prompt.model || '').trim().slice(0, 80) : '',
       syntax: kind === 'image' ? syntax : 'natural_language',
       exampleImages: kind === 'image' ? exampleImages : [],
+      isBuiltin: prompt.isBuiltin === true || (typeof prompt.isBuiltin === 'undefined' && !!BUILTIN_PROMPT_IDS[id]),
       updatedAt: Number.isNaN(updatedTime) ? new Date().toISOString() : new Date(updatedTime).toISOString()
     };
   }
@@ -238,6 +293,7 @@
     var preview = prompt.content.length > 420 ? prompt.content.slice(0, 420) + '…' : prompt.content;
     var typeLabel = prompt.kind === 'image' ? '绘画提示词' : '普通提示词';
     var badges = '<span class="prompt-card__badge">' + escapeHtml(typeLabel) + '</span>';
+    if (prompt.isBuiltin) badges += '<span class="prompt-card__badge prompt-card__badge--accent">网站内置</span>';
     if (prompt.kind === 'image') {
       badges += '<span class="prompt-card__badge prompt-card__badge--accent">' + escapeHtml(PROMPT_PART_LABELS[prompt.promptPart] || prompt.promptPart) + '</span>';
       if (prompt.model) badges += '<span class="prompt-card__badge">' + escapeHtml(prompt.model) + '</span>';
@@ -253,6 +309,13 @@
       '</a>';
     }).join('');
     var imageBlock = images ? '<div class="prompt-card__images" aria-label="示例图片">' + images + '</div>' : '';
+    var footer = '<button class="button button--quiet" type="button" data-action="copy" aria-label="复制：' + escapeHtml(prompt.title) + '">复制</button>';
+    if (prompt.isBuiltin) {
+      footer += '<button class="button button--quiet" type="button" data-action="duplicate" aria-label="复制为自定义：' + escapeHtml(prompt.title) + '">复制为自定义</button>';
+    } else {
+      footer += '<button class="button button--quiet" type="button" data-action="edit" aria-label="编辑：' + escapeHtml(prompt.title) + '">编辑</button>' +
+        '<button class="button button--quiet" type="button" data-action="delete" aria-label="删除：' + escapeHtml(prompt.title) + '">删除</button>';
+    }
     return '<article class="prompt-card' + (prompt.kind === 'image' ? ' prompt-card--image' : '') + '" data-prompt-id="' + escapeHtml(prompt.id) + '">' +
       '<header class="prompt-card__header"><div><h2>' + escapeHtml(prompt.title) + '</h2><span class="prompt-card__type">' + escapeHtml(typeLabel) + '</span></div><span class="prompt-card__category">' + escapeHtml(prompt.category) + '</span></header>' +
       '<p class="prompt-card__description">' + escapeHtml(prompt.description || '暂无简介') + '</p>' +
@@ -261,9 +324,7 @@
       '<pre class="prompt-card__content"><code>' + escapeHtml(preview) + '</code></pre>' +
       '<div class="prompt-card__tags" aria-label="标签">' + tags + '</div>' +
       '<footer class="prompt-card__footer">' +
-        '<button class="button button--quiet" type="button" data-action="copy" aria-label="复制：' + escapeHtml(prompt.title) + '">复制</button>' +
-        '<button class="button button--quiet" type="button" data-action="edit" aria-label="编辑：' + escapeHtml(prompt.title) + '">编辑</button>' +
-        '<button class="button button--quiet" type="button" data-action="delete" aria-label="删除：' + escapeHtml(prompt.title) + '">删除</button>' +
+        footer +
       '</footer>' +
       '</article>';
   }
@@ -457,6 +518,29 @@
     });
   }
 
+  function duplicatePrompt(prompt) {
+    var copy = normalizePrompt({
+      id: createId(),
+      title: prompt.title + '（自定义）',
+      category: prompt.category,
+      tags: prompt.tags,
+      description: prompt.description,
+      content: prompt.content,
+      kind: prompt.kind,
+      promptPart: prompt.promptPart,
+      model: prompt.model,
+      syntax: prompt.syntax,
+      exampleImages: prompt.exampleImages,
+      updatedAt: new Date().toISOString(),
+      isBuiltin: false
+    });
+    if (!copy) return;
+    state.prompts.unshift(copy);
+    savePrompts();
+    render();
+    syncOneToCloud(copy);
+  }
+
   function exportPrompts() {
     var blob = new Blob([JSON.stringify(state.prompts, null, 2)], { type: 'application/json' });
     var url = URL.createObjectURL(blob);
@@ -478,11 +562,11 @@
         if (!Array.isArray(parsed)) throw new Error('not an array');
         var imported = parsed.map(normalizePrompt).filter(Boolean);
         if (!imported.length) throw new Error('empty');
-        if (!window.confirm('导入将替换当前的 ' + state.prompts.length + ' 条提示词，确定继续吗？')) {
+        if (!window.confirm('导入将替换当前的 ' + getUserPrompts(state.prompts).length + ' 条自定义提示词，网站内置提示词会保留，确定继续吗？')) {
           importInput.value = '';
           return;
         }
-        state.prompts = imported;
+        state.prompts = mergeBuiltinPrompts(imported);
         state.query = '';
         state.kind = '';
         state.category = '';
@@ -596,8 +680,9 @@
   }
 
   function upsertRemote(prompts) {
-    if (!prompts.length) return Promise.resolve();
-    return state.client.from('prompts').upsert(prompts.map(toRemoteRow), { onConflict: 'user_id,id' }).then(function (result) {
+    var userPrompts = getUserPrompts(prompts);
+    if (!userPrompts.length) return Promise.resolve();
+    return state.client.from('prompts').upsert(userPrompts.map(toRemoteRow), { onConflict: 'user_id,id' }).then(function (result) {
       if (result.error) throw result.error;
     });
   }
@@ -630,22 +715,24 @@
     updateSignedInStatus('正在从云端读取提示词……', 'syncing');
     try {
       if (state.localOwner && state.localOwner !== state.user.id) {
-        state.prompts = seedPrompts.map(normalizePrompt);
+        state.prompts = BUILTIN_PROMPTS.slice();
         state.localPersisted = false;
       }
       var remotePrompts = (await getRemoteRows()).map(fromRemoteRow).filter(Boolean);
-      var localPrompts = state.localPersisted ? state.prompts : [];
-      if (!remotePrompts.length) {
-        if (state.prompts.length) {
-          var shouldUpload = !state.localPersisted || window.confirm('云端还没有提示词，是否上传当前浏览器中的 ' + state.prompts.length + ' 条？');
-          if (shouldUpload) await upsertRemote(state.prompts);
-          else state.prompts = [];
+      var remoteUserPrompts = getUserPrompts(remotePrompts);
+      var localUserPrompts = state.localPersisted ? getUserPrompts(state.prompts) : [];
+      if (!remoteUserPrompts.length) {
+        if (localUserPrompts.length) {
+          var shouldUpload = !state.localPersisted || window.confirm('云端还没有提示词，是否上传当前浏览器中的 ' + localUserPrompts.length + ' 条？');
+          if (shouldUpload) await upsertRemote(localUserPrompts);
+          else localUserPrompts = [];
         }
+        state.prompts = mergeBuiltinPrompts(localUserPrompts);
       } else if (state.localPersisted) {
-        state.prompts = mergePrompts(remotePrompts, localPrompts);
-        await upsertRemote(state.prompts);
+        state.prompts = mergeBuiltinPrompts(mergePrompts(remoteUserPrompts, localUserPrompts));
+        await upsertRemote(getUserPrompts(state.prompts));
       } else {
-        state.prompts = remotePrompts;
+        state.prompts = mergeBuiltinPrompts(remoteUserPrompts);
       }
       state.localPersisted = true;
       savePrompts();
@@ -660,7 +747,7 @@
   }
 
   function syncOneToCloud(prompt) {
-    if (!state.client || !state.user) return;
+    if (prompt.isBuiltin || !state.client || !state.user) return;
     updateSignedInStatus('正在保存到云端……', 'syncing');
     upsertRemote([prompt]).then(function () {
       updateSignedInStatus('已同步 · ' + state.prompts.length + ' 条提示词', 'online');
@@ -688,13 +775,14 @@
     updateSignedInStatus('正在更新云端列表……', 'syncing');
     try {
       var remotePrompts = (await getRemoteRows()).map(fromRemoteRow).filter(Boolean);
-      var localIds = state.prompts.map(function (prompt) { return prompt.id; });
-      var stalePrompts = remotePrompts.filter(function (prompt) { return localIds.indexOf(prompt.id) === -1; });
+      var localUserPrompts = getUserPrompts(state.prompts);
+      var localIds = localUserPrompts.map(function (prompt) { return prompt.id; });
+      var stalePrompts = getUserPrompts(remotePrompts).filter(function (prompt) { return localIds.indexOf(prompt.id) === -1; });
       for (var index = 0; index < stalePrompts.length; index += 1) {
         await deleteRemote(stalePrompts[index].id);
         await removeStoredImages(stalePrompts[index].exampleImages);
       }
-      await upsertRemote(state.prompts);
+      await upsertRemote(localUserPrompts);
       updateSignedInStatus('已同步 · ' + state.prompts.length + ' 条提示词', 'online');
     } catch (error) {
       updateSignedInStatus('云端更新失败，内容已保留在本地', 'error');
@@ -777,8 +865,13 @@
     var prompt = state.prompts.find(function (item) { return item.id === card.getAttribute('data-prompt-id'); });
     if (!prompt) return;
     if (action === 'copy') return copyPrompt(prompt, button);
-    if (action === 'edit') return openForm(prompt);
-    if (action === 'delete' && window.confirm('确定删除“' + prompt.title + '”吗？')) {
+    if (action === 'duplicate') return duplicatePrompt(prompt);
+    if (action === 'edit') {
+      if (prompt.isBuiltin) return;
+      return openForm(prompt);
+    }
+    if (action === 'delete') {
+      if (prompt.isBuiltin || !window.confirm('确定删除“' + prompt.title + '”吗？')) return;
       state.prompts = state.prompts.filter(function (item) { return item.id !== prompt.id; });
       savePrompts();
       render();
