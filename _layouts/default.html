@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ page.title | default: site.title | escape }}</title>
+  <link rel="stylesheet" href="{{ '/assets/css/site.css' | relative_url }}">
+  <link rel="stylesheet" href="{{ '/assets/css/fish.css' | relative_url }}">
+  {% if page.stylesheet %}<link rel="stylesheet" href="{{ page.stylesheet | relative_url }}">{% endif %}
+  {% if page.supabase %}<script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script defer src="{{ '/assets/js/prompts-config.js' | relative_url }}"></script>{% endif %}
+  <script defer src="{{ '/assets/js/fish.js' | relative_url }}"></script>
+  {% if page.script %}<script defer src="{{ page.script | relative_url }}"></script>{% endif %}
+</head>
+<body>
+  <main class="site-content{% if page.home %} site-content--home{% endif %}">
+    {{ content }}
+  </main>
+  <div id="jsi-flying-fish-container" class="fish-container" aria-hidden="true"></div>
+</body>
+</html>
