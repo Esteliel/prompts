@@ -669,10 +669,12 @@
     });
   }
 
-  function syncDeleteToCloud(id) {
+  function syncDeleteToCloud(id, images) {
     if (!state.client || !state.user) return;
     updateSignedInStatus('正在从云端删除……', 'syncing');
     deleteRemote(id).then(function () {
+      return removeStoredImages(images || []);
+    }).then(function () {
       updateSignedInStatus('已同步 · ' + state.prompts.length + ' 条提示词', 'online');
     }).catch(function (error) {
       updateSignedInStatus('云端删除失败，内容仍保留在云端', 'error');
@@ -779,10 +781,7 @@
       state.prompts = state.prompts.filter(function (item) { return item.id !== prompt.id; });
       savePrompts();
       render();
-      syncDeleteToCloud(prompt.id);
-      removeStoredImages(prompt.exampleImages).catch(function (error) {
-        if (window.console && console.error) console.error('Prompt image cleanup failed:', error);
-      });
+      syncDeleteToCloud(prompt.id, prompt.exampleImages);
     }
   });
 
