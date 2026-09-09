@@ -24,7 +24,7 @@
 
 .prompt-toolbar {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 180px auto;
+  grid-template-columns: minmax(180px, 1fr) repeat(4, minmax(125px, 0.7fr)) auto;
   gap: 12px;
   align-items: end;
   margin-top: 34px;
@@ -50,6 +50,7 @@
 .prompt-toolbar input,
 .prompt-toolbar select,
 .prompt-form input,
+.prompt-form select,
 .prompt-form textarea {
   box-sizing: border-box;
   width: 100%;
@@ -68,12 +69,26 @@
   padding: 8px 12px;
 }
 
+.prompt-form select {
+  min-height: 42px;
+  padding: 8px 12px;
+}
+
 .prompt-form textarea {
   min-height: 180px;
   padding: 12px;
   line-height: 1.55;
   resize: vertical;
 }
+
+.prompt-form__hint { margin: -1px 0 0; color: #8298a6; font-size: 0.74rem; line-height: 1.45; }
+.prompt-image-preview { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.prompt-image-preview:empty { display: none; }
+.prompt-image-preview__item { position: relative; min-width: 0; padding: 7px; border: 1px solid #466274; border-radius: 9px; color: #c5d7e1; background: #152836; font-size: 0.72rem; }
+.prompt-image-preview__item img { display: block; width: 100%; aspect-ratio: 1; margin-bottom: 5px; border-radius: 6px; object-fit: cover; background: #0e1c25; }
+.prompt-image-preview__name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prompt-image-preview__remove { position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; padding: 0; border: 1px solid #6c4a52; border-radius: 50%; color: #ffd8db; background: rgb(35 18 24 / 82%); cursor: pointer; line-height: 1; }
+.prompt-image-preview__remove:hover { border-color: #ef9da6; }
 
 .prompt-toolbar input::placeholder,
 .prompt-form input::placeholder,
@@ -82,6 +97,7 @@
 .prompt-toolbar input:focus,
 .prompt-toolbar select:focus,
 .prompt-form input:focus,
+.prompt-form select:focus,
 .prompt-form textarea:focus {
   border-color: #a4d8ff;
   outline: none;
@@ -153,7 +169,17 @@
 
 .prompt-card h2 { margin: 0; font-size: 1.12rem; line-height: 1.35; }
 .prompt-card__category { flex: 0 0 auto; color: #a4d8ff; font-size: 0.75rem; }
+.prompt-card__type { color: #f4cf93; font-size: 0.72rem; }
+.prompt-card__badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.prompt-card__badge { padding: 3px 8px; border: 1px solid #50697a; border-radius: 999px; color: #b9d3e1; font-size: 0.7rem; }
+.prompt-card__badge--accent { border-color: #9c8159; color: #f2d7a5; }
 .prompt-card__description { min-height: 1.6em; margin: 8px 0 0; color: #a8b8c4; font-size: 0.875rem; }
+
+.prompt-card__images { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; margin: 16px 0 0; }
+.prompt-card__image-link { display: block; min-width: 0; overflow: hidden; border-radius: 9px; background: #142532; }
+.prompt-card__image-figure { position: relative; display: block; aspect-ratio: 1; margin: 0; }
+.prompt-card__image { display: block; width: 100%; height: 100%; object-fit: cover; }
+.prompt-card__image-placeholder { display: grid; width: 100%; height: 100%; place-items: center; color: #8299a7; font-size: 0.7rem; }
 
 .prompt-card__content {
   overflow: hidden;
@@ -235,6 +261,8 @@
   .prompt-form__grid { grid-template-columns: 1fr; gap: 14px; }
   .prompt-form__field--wide { grid-column: auto; }
   .prompt-form__footer .button { flex: 1; }
+  .prompt-card__images,
+  .prompt-image-preview { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -242,6 +270,7 @@
   .prompt-toolbar input,
   .prompt-toolbar select,
   .prompt-form input,
+  .prompt-form select,
   .prompt-form textarea,
   .prompt-card { transition: none; }
 }

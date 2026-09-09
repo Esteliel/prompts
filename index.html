@@ -33,9 +33,29 @@ supabase: true
       <input id="prompt-search" type="search" placeholder="搜索标题、内容或标签" autocomplete="off">
     </div>
     <div class="prompt-toolbar__field">
+      <label for="prompt-kind">类型</label>
+      <select id="prompt-kind">
+        <option value="">全部类型</option>
+        <option value="text">普通提示词</option>
+        <option value="image">绘画提示词</option>
+      </select>
+    </div>
+    <div class="prompt-toolbar__field">
       <label for="prompt-category">分类</label>
       <select id="prompt-category">
         <option value="">全部分类</option>
+      </select>
+    </div>
+    <div class="prompt-toolbar__field">
+      <label for="prompt-model-filter">模型</label>
+      <select id="prompt-model-filter">
+        <option value="">全部模型</option>
+      </select>
+    </div>
+    <div class="prompt-toolbar__field">
+      <label for="prompt-syntax-filter">提示词格式</label>
+      <select id="prompt-syntax-filter">
+        <option value="">全部格式</option>
       </select>
     </div>
     <button class="button button--primary" type="button" data-action="new">＋ 新建提示词</button>
@@ -83,6 +103,13 @@ supabase: true
         <input id="prompt-title" name="title" type="text" maxlength="80" required placeholder="例如：文章润色助手">
       </div>
       <div class="prompt-form__field">
+        <label for="prompt-form-kind">类型</label>
+        <select id="prompt-form-kind" name="kind">
+          <option value="text">普通提示词</option>
+          <option value="image">绘画提示词</option>
+        </select>
+      </div>
+      <div class="prompt-form__field">
         <label for="prompt-form-category">分类</label>
         <input id="prompt-form-category" name="category" type="text" maxlength="30" placeholder="例如：写作">
       </div>
@@ -97,6 +124,41 @@ supabase: true
       <div class="prompt-form__field prompt-form__field--wide">
         <label for="prompt-content">提示词内容 <span aria-hidden="true">*</span></label>
         <textarea id="prompt-content" name="content" rows="10" required placeholder="写下你的提示词……"></textarea>
+      </div>
+      <div class="prompt-form__field prompt-image-field">
+        <label for="prompt-part">绘画提示词组成</label>
+        <select id="prompt-part" name="promptPart">
+          <option value="complete">可直接使用的完整提示词</option>
+          <option value="style">画风</option>
+          <option value="character">角色</option>
+          <option value="action">动作</option>
+          <option value="clothing">服装</option>
+        </select>
+      </div>
+      <div class="prompt-form__field prompt-image-field">
+        <label for="prompt-model">模型</label>
+        <input id="prompt-model" name="model" type="text" maxlength="80" list="prompt-model-options" placeholder="例如：SDXL、FLUX.1、Midjourney">
+        <datalist id="prompt-model-options">
+          <option value="SDXL"></option>
+          <option value="FLUX.1"></option>
+          <option value="Midjourney"></option>
+          <option value="Stable Diffusion 1.5"></option>
+        </datalist>
+      </div>
+      <div class="prompt-form__field prompt-image-field">
+        <label for="prompt-syntax">提示词格式</label>
+        <select id="prompt-syntax" name="syntax">
+          <option value="natural_language">自然语言</option>
+          <option value="danbooru">Danbooru 标签</option>
+          <option value="mixed">混合格式</option>
+          <option value="other">其他</option>
+        </select>
+      </div>
+      <div class="prompt-form__field prompt-form__field--wide prompt-image-field">
+        <label for="prompt-images">示例图片</label>
+        <input id="prompt-images" name="images" type="file" accept="image/*" multiple>
+        <p class="prompt-form__hint">登录后图片会保存到云端；单张不超过 8 MB，最多 8 张。</p>
+        <div id="prompt-image-preview" class="prompt-image-preview" aria-live="polite"></div>
       </div>
     </div>
     <p id="prompt-form-error" class="form-error" role="alert" hidden></p>

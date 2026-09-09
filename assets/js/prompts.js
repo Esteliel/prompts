@@ -34,7 +34,10 @@
   if (!list) return;
 
   var search = document.getElementById('prompt-search');
+  var kindFilter = document.getElementById('prompt-kind');
   var category = document.getElementById('prompt-category');
+  var modelFilter = document.getElementById('prompt-model-filter');
+  var syntaxFilter = document.getElementById('prompt-syntax-filter');
   var summary = document.getElementById('prompt-summary');
   var empty = document.getElementById('prompt-empty');
   var emptyTitle = document.getElementById('prompt-empty-title');
@@ -51,16 +54,42 @@
   var authEmail = document.getElementById('prompt-auth-email');
   var authMessage = document.getElementById('prompt-auth-message');
   var authSubmit = authForm ? authForm.querySelector('[type="submit"]') : null;
+  var formKind = document.getElementById('prompt-form-kind');
+  var formPart = document.getElementById('prompt-part');
+  var formModel = document.getElementById('prompt-model');
+  var formSyntax = document.getElementById('prompt-syntax');
+  var imageInput = document.getElementById('prompt-images');
+  var imagePreview = document.getElementById('prompt-image-preview');
+  var imageFields = document.querySelectorAll('.prompt-image-field');
+
+  var PROMPT_PART_LABELS = {
+    complete: '完整提示词',
+    style: '画风',
+    character: '角色',
+    action: '动作',
+    clothing: '服装'
+  };
+  var SYNTAX_LABELS = {
+    natural_language: '自然语言',
+    danbooru: 'Danbooru 标签',
+    mixed: '混合格式',
+    other: '其他'
+  };
+
   var localState = readLocalPrompts();
   var state = {
     prompts: localState.prompts,
     localPersisted: localState.persisted,
     localOwner: localState.owner,
     query: '',
+    kind: '',
     category: '',
+    model: '',
+    syntax: '',
     client: null,
     user: null,
-    syncing: false
+    syncing: false,
+    formImages: { existing: [], pending: [] }
   };
 
   function readLocalPrompts() {
@@ -98,6 +127,10 @@
     if (!title || !content) return null;
     var tags = Array.isArray(prompt.tags) ? prompt.tags : String(prompt.tags || '').split(/[,，]/);
     var updatedTime = Date.parse(prompt.updatedAt || '');
+    var kind = prompt.kind === 'image' ? 'image' : 'text';
+    var promptPart = Object.prototype.hasOwnProperty.call(PROMPT_PART_LABELS, prompt.promptPart) ? prompt.promptPart : 'complete';
+    var syntax = Object.prototype.hasOwnProperty.call(SYNTAX_LABELS, prompt.syntax) ? prompt.syntax : 'natural_language';
+    var exampleImages = Array.isArray(prompt.exampleImages) ? prompt.exampleImages.map(normalizeImage).filter(Boolean).slice(0, 8) : [];
     return {
       id: String(prompt.id || createId()),
       title: title.slice(0, 80),
@@ -105,7 +138,26 @@
       tags: tags.map(function (tag) { return String(tag).trim(); }).filter(Boolean).filter(unique).slice(0, 12),
       description: String(prompt.description || '').trim().slice(0, 160),
       content: content,
+      kind: kind,
+      promptPart: kind === 'image' ? promptPart : 'complete',
+      model: kind === 'image' ? String(prompt.model || '').trim().slice(0, 80) : '',
+      syntax: kind === 'image' ? syntax : 'natural_language',
+      exampleImages: kind === 'image' ? exampleImages : [],
       updatedAt: Number.isNaN(updatedTime) ? new Date().toISOString() : new Date(updatedTime).toISOString()
+    };
+  }
+
+  function normalizeImage(image) {
+    if (!image || typeof image !== 'object') return null;
+    var path = String(image.path || '').trim().slice(0, 300);
+    var url = String(image.url || '').trim();
+    if (!path && !/^https?:\/\//i.test(url)) return null;
+    if (!/^https?:\/\//i.test(url)) url = '';
+    return {
+      path: path,
+      name: String(image.name || image.alt || '示例图片').trim().slice(0, 120) || '示例图片',
+      alt: String(image.alt || image.name || '提示词示例图片').trim().slice(0, 160) || '提示词示例图片',
+      url: url
     };
   }
 
@@ -130,10 +182,13 @@
   function getFilteredPrompts() {
     var query = state.query.toLocaleLowerCase();
     return state.prompts.filter(function (prompt) {
+      var matchesKind = !state.kind || prompt.kind === state.kind;
       var matchesCategory = !state.category || prompt.category === state.category;
-      if (!matchesCategory) return false;
+      var matchesModel = !state.model || prompt.model === state.model;
+      var matchesSyntax = !state.syntax || prompt.syntax === state.syntax;
+      if (!matchesKind || !matchesCategory || !matchesModel || !matchesSyntax) return false;
       if (!query) return true;
-      var searchable = [prompt.title, prompt.category, prompt.description, prompt.content].concat(prompt.tags).join(' ').toLocaleLowerCase();
+      var searchable = [prompt.title, prompt.category, prompt.description, prompt.content, prompt.model, prompt.promptPart, prompt.syntax].concat(prompt.tags).join(' ').toLocaleLowerCase();
       return searchable.indexOf(query) !== -1;
     });
   }
@@ -146,6 +201,21 @@
     category.innerHTML = options;
     category.value = categories.indexOf(state.category) === -1 ? '' : state.category;
     state.category = category.value;
+
+    var models = state.prompts.map(function (prompt) { return prompt.model; }).filter(Boolean).filter(unique).sort();
+    modelFilter.innerHTML = '<option value="">全部模型</option>' + models.map(function (item) {
+      return '<option value="' + escapeHtml(item) + '">' + escapeHtml(item) + '</option>';
+    }).join('');
+    modelFilter.value = models.indexOf(state.model) === -1 ? '' : state.model;
+    state.model = modelFilter.value;
+
+    var syntaxes = state.prompts.map(function (prompt) { return prompt.syntax; }).filter(Boolean).filter(unique).sort();
+    syntaxFilter.innerHTML = '<option value="">全部格式</option>' + syntaxes.map(function (item) {
+      return '<option value="' + escapeHtml(item) + '">' + escapeHtml(SYNTAX_LABELS[item] || item) + '</option>';
+    }).join('');
+    syntaxFilter.value = syntaxes.indexOf(state.syntax) === -1 ? '' : state.syntax;
+    state.syntax = syntaxFilter.value;
+    kindFilter.value = state.kind;
   }
 
   function render() {
@@ -157,6 +227,7 @@
     empty.hidden = visible.length !== 0;
     emptyTitle.textContent = noPrompts ? '还没有提示词' : '还没有匹配的提示词';
     emptyCopy.textContent = noPrompts ? '新建一条提示词，把常用工作流收进来。' : '换个关键词，或者清除筛选试试。';
+    hydrateImageUrls();
   }
 
   function renderCard(prompt) {
@@ -164,9 +235,28 @@
       return '<span class="prompt-tag">' + escapeHtml(tag) + '</span>';
     }).join('');
     var preview = prompt.content.length > 420 ? prompt.content.slice(0, 420) + '…' : prompt.content;
-    return '<article class="prompt-card" data-prompt-id="' + escapeHtml(prompt.id) + '">' +
-      '<header class="prompt-card__header"><h2>' + escapeHtml(prompt.title) + '</h2><span class="prompt-card__category">' + escapeHtml(prompt.category) + '</span></header>' +
+    var typeLabel = prompt.kind === 'image' ? '绘画提示词' : '普通提示词';
+    var badges = '<span class="prompt-card__badge">' + escapeHtml(typeLabel) + '</span>';
+    if (prompt.kind === 'image') {
+      badges += '<span class="prompt-card__badge prompt-card__badge--accent">' + escapeHtml(PROMPT_PART_LABELS[prompt.promptPart] || prompt.promptPart) + '</span>';
+      if (prompt.model) badges += '<span class="prompt-card__badge">' + escapeHtml(prompt.model) + '</span>';
+      badges += '<span class="prompt-card__badge">' + escapeHtml(SYNTAX_LABELS[prompt.syntax] || prompt.syntax) + '</span>';
+    }
+    var images = prompt.exampleImages.map(function (image) {
+      var immediateUrl = image.url && /^https?:\/\//i.test(image.url) ? image.url : '';
+      return '<a class="prompt-card__image-link" href="' + (immediateUrl ? escapeHtml(immediateUrl) : '#') + '" target="_blank" rel="noreferrer" data-image-path="' + escapeHtml(image.path) + '">' +
+        '<figure class="prompt-card__image-figure">' +
+          '<img class="prompt-card__image"' + (immediateUrl ? ' src="' + escapeHtml(immediateUrl) + '"' : ' hidden') + ' data-image-path="' + escapeHtml(image.path) + '" alt="' + escapeHtml(image.alt) + '">' +
+          '<span class="prompt-card__image-placeholder"' + (immediateUrl ? ' hidden' : '') + '>示例图</span>' +
+        '</figure>' +
+      '</a>';
+    }).join('');
+    var imageBlock = images ? '<div class="prompt-card__images" aria-label="示例图片">' + images + '</div>' : '';
+    return '<article class="prompt-card' + (prompt.kind === 'image' ? ' prompt-card--image' : '') + '" data-prompt-id="' + escapeHtml(prompt.id) + '">' +
+      '<header class="prompt-card__header"><div><h2>' + escapeHtml(prompt.title) + '</h2><span class="prompt-card__type">' + escapeHtml(typeLabel) + '</span></div><span class="prompt-card__category">' + escapeHtml(prompt.category) + '</span></header>' +
       '<p class="prompt-card__description">' + escapeHtml(prompt.description || '暂无简介') + '</p>' +
+      '<div class="prompt-card__badges" aria-label="提示词属性">' + badges + '</div>' +
+      imageBlock +
       '<pre class="prompt-card__content"><code>' + escapeHtml(preview) + '</code></pre>' +
       '<div class="prompt-card__tags" aria-label="标签">' + tags + '</div>' +
       '<footer class="prompt-card__footer">' +
@@ -174,7 +264,34 @@
         '<button class="button button--quiet" type="button" data-action="edit" aria-label="编辑：' + escapeHtml(prompt.title) + '">编辑</button>' +
         '<button class="button button--quiet" type="button" data-action="delete" aria-label="删除：' + escapeHtml(prompt.title) + '">删除</button>' +
       '</footer>' +
-    '</article>';
+      '</article>';
+  }
+
+  function hydrateImageUrls() {
+    if (!state.client || !state.user || !state.client.storage) return;
+    var nodes = Array.prototype.slice.call(document.querySelectorAll('.prompt-card__image[data-image-path]'));
+    var paths = nodes.map(function (node) { return node.getAttribute('data-image-path'); }).filter(Boolean).filter(unique);
+    if (!paths.length) return;
+    state.client.storage.from('prompt-examples').createSignedUrls(paths, 3600).then(function (result) {
+      if (result.error) throw result.error;
+      var urlByPath = Object.create(null);
+      (result.data || []).forEach(function (item) {
+        if (item && item.path && item.signedUrl) urlByPath[item.path] = item.signedUrl;
+      });
+      nodes.forEach(function (node) {
+        var path = node.getAttribute('data-image-path');
+        var url = urlByPath[path];
+        if (!url) return;
+        node.src = url;
+        node.hidden = false;
+        var link = node.closest('.prompt-card__image-link');
+        if (link) link.href = url;
+        var placeholder = node.parentElement.querySelector('.prompt-card__image-placeholder');
+        if (placeholder) placeholder.hidden = true;
+      });
+    }).catch(function (error) {
+      if (window.console && console.error) console.error('Prompt image URL failed:', error);
+    });
   }
 
   function openForm(prompt) {
@@ -186,6 +303,17 @@
     document.getElementById('prompt-tags').value = prompt ? prompt.tags.join('，') : '';
     document.getElementById('prompt-description').value = prompt ? prompt.description : '';
     document.getElementById('prompt-content').value = prompt ? prompt.content : '';
+    formKind.value = prompt && prompt.kind === 'image' ? 'image' : 'text';
+    formPart.value = prompt && prompt.promptPart ? prompt.promptPart : 'complete';
+    formModel.value = prompt && prompt.model ? prompt.model : '';
+    formSyntax.value = prompt && prompt.syntax ? prompt.syntax : 'natural_language';
+    state.formImages = {
+      existing: prompt && prompt.exampleImages ? prompt.exampleImages.map(function (image) { return Object.assign({}, image); }) : [],
+      pending: []
+    };
+    imageInput.value = '';
+    toggleImageFields();
+    renderFormImages();
     document.getElementById('prompt-dialog-title').textContent = prompt ? '编辑提示词' : '新建提示词';
     setFormError('');
     if (typeof dialog.showModal === 'function') dialog.showModal();
@@ -204,6 +332,30 @@
     error.hidden = !message;
   }
 
+  function toggleImageFields() {
+    var isImage = formKind.value === 'image';
+    Array.prototype.forEach.call(imageFields, function (field) { field.hidden = !isImage; });
+  }
+
+  function renderFormImages() {
+    if (!imagePreview) return;
+    var existing = state.formImages.existing.map(function (image, index) {
+      var src = image.url && /^https?:\/\//i.test(image.url) ? image.url : '';
+      return '<div class="prompt-image-preview__item">' +
+        (src ? '<img src="' + escapeHtml(src) + '" alt="' + escapeHtml(image.alt) + '">' : '') +
+        '<span class="prompt-image-preview__name" title="' + escapeHtml(image.name) + '">' + escapeHtml(image.name) + '</span>' +
+        '<button class="prompt-image-preview__remove" type="button" data-action="remove-image" data-image-index="' + index + '" aria-label="移除 ' + escapeHtml(image.name) + '">×</button>' +
+      '</div>';
+    }).join('');
+    var pending = state.formImages.pending.map(function (file, index) {
+      return '<div class="prompt-image-preview__item">' +
+        '<span class="prompt-image-preview__name" title="' + escapeHtml(file.name) + '">待上传：' + escapeHtml(file.name) + '</span>' +
+        '<button class="prompt-image-preview__remove" type="button" data-action="remove-pending-image" data-image-index="' + index + '" aria-label="移除 ' + escapeHtml(file.name) + '">×</button>' +
+      '</div>';
+    }).join('');
+    imagePreview.innerHTML = existing + pending;
+  }
+
   function readForm() {
     var tags = document.getElementById('prompt-tags').value.split(/[,，]/).map(function (tag) {
       return tag.trim();
@@ -215,7 +367,56 @@
       tags: tags,
       description: document.getElementById('prompt-description').value,
       content: document.getElementById('prompt-content').value,
+      kind: formKind.value,
+      promptPart: formPart.value,
+      model: formModel.value,
+      syntax: formSyntax.value,
+      exampleImages: state.formImages.existing,
       updatedAt: new Date().toISOString()
+    });
+  }
+
+  function setFormSaving(isSaving) {
+    var submit = form.querySelector('[type="submit"]');
+    if (submit) {
+      submit.disabled = isSaving;
+      submit.textContent = isSaving ? '正在保存……' : '保存提示词';
+    }
+  }
+
+  function getFileExtension(file) {
+    var byType = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'image/avif': 'avif' };
+    if (byType[file.type]) return byType[file.type];
+    var match = String(file.name || '').toLowerCase().match(/\.([a-z0-9]+)$/);
+    return match ? match[1].slice(0, 8) : 'jpg';
+  }
+
+  async function uploadPendingImages(promptId, files) {
+    if (!files.length) return [];
+    if (!state.user || !state.client || !state.client.storage) throw new Error('上传示例图片前请先登录。');
+    var bucket = state.client.storage.from('prompt-examples');
+    var uploaded = [];
+    try {
+      for (var index = 0; index < files.length; index += 1) {
+        var file = files[index];
+        var path = state.user.id + '/' + promptId + '/' + createId() + '.' + getFileExtension(file);
+        var result = await bucket.upload(path, file, { cacheControl: '3600', upsert: false, contentType: file.type || 'image/*' });
+        if (result.error) throw result.error;
+        uploaded.push({ path: path, name: file.name, alt: file.name, url: '' });
+      }
+      return uploaded;
+    } catch (error) {
+      if (uploaded.length) await bucket.remove(uploaded.map(function (image) { return image.path; }));
+      throw error;
+    }
+  }
+
+  function removeStoredImages(images) {
+    if (!state.user || !state.client || !state.client.storage || !images || !images.length) return Promise.resolve();
+    var paths = images.map(function (image) { return image.path; }).filter(Boolean);
+    if (!paths.length) return Promise.resolve();
+    return state.client.storage.from('prompt-examples').remove(paths).then(function (result) {
+      if (result.error) throw result.error;
     });
   }
 
@@ -279,7 +480,10 @@
         }
         state.prompts = imported;
         state.query = '';
+        state.kind = '';
         state.category = '';
+        state.model = '';
+        state.syntax = '';
         search.value = '';
         savePrompts();
         render();
@@ -344,7 +548,7 @@
 
   function getRemoteRows() {
     return state.client.from('prompts')
-      .select('id,user_id,title,category,tags,description,content,updated_at')
+      .select('id,user_id,title,category,tags,description,content,kind,prompt_part,model,syntax,example_images,updated_at')
       .order('updated_at', { ascending: false })
       .then(function (result) {
         if (result.error) throw result.error;
@@ -361,6 +565,11 @@
       tags: prompt.tags,
       description: prompt.description,
       content: prompt.content,
+      kind: prompt.kind,
+      prompt_part: prompt.promptPart,
+      model: prompt.model,
+      syntax: prompt.syntax,
+      example_images: prompt.exampleImages,
       updated_at: prompt.updatedAt
     };
   }
@@ -373,6 +582,11 @@
       tags: row.tags,
       description: row.description,
       content: row.content,
+      kind: row.kind,
+      promptPart: row.prompt_part,
+      model: row.model,
+      syntax: row.syntax,
+      exampleImages: row.example_images,
       updatedAt: row.updated_at
     });
   }
@@ -469,10 +683,11 @@
     try {
       var remotePrompts = (await getRemoteRows()).map(fromRemoteRow).filter(Boolean);
       var localIds = state.prompts.map(function (prompt) { return prompt.id; });
-      var staleIds = remotePrompts.map(function (prompt) { return prompt.id; }).filter(function (id) {
-        return localIds.indexOf(id) === -1;
-      });
-      for (var index = 0; index < staleIds.length; index += 1) await deleteRemote(staleIds[index]);
+      var stalePrompts = remotePrompts.filter(function (prompt) { return localIds.indexOf(prompt.id) === -1; });
+      for (var index = 0; index < stalePrompts.length; index += 1) {
+        await deleteRemote(stalePrompts[index].id);
+        await removeStoredImages(stalePrompts[index].exampleImages);
+      }
       await upsertRemote(state.prompts);
       updateSignedInStatus('已同步 · ' + state.prompts.length + ' 条提示词', 'online');
     } catch (error) {
@@ -516,11 +731,23 @@
   }
 
   document.addEventListener('click', function (event) {
+    var imageLink = event.target.closest('.prompt-card__image-link');
+    if (imageLink && imageLink.getAttribute('href') === '#') event.preventDefault();
     var button = event.target.closest('[data-action]');
     if (!button) return;
     var action = button.getAttribute('data-action');
     if (action === 'new') return openForm();
     if (action === 'cancel') return closeForm();
+    if (action === 'remove-image') {
+      state.formImages.existing.splice(Number(button.getAttribute('data-image-index')), 1);
+      renderFormImages();
+      return;
+    }
+    if (action === 'remove-pending-image') {
+      state.formImages.pending.splice(Number(button.getAttribute('data-image-index')), 1);
+      renderFormImages();
+      return;
+    }
     if (action === 'sign-in') return openAuthDialog();
     if (action === 'cancel-auth') return closeAuthDialog();
     if (action === 'sign-out') {
@@ -531,7 +758,10 @@
     if (action === 'import') return importInput.click();
     if (action === 'clear-filters') {
       state.query = '';
+      state.kind = '';
       state.category = '';
+      state.model = '';
+      state.syntax = '';
       search.value = '';
       render();
       return;
@@ -547,6 +777,9 @@
       savePrompts();
       render();
       syncDeleteToCloud(prompt.id);
+      removeStoredImages(prompt.exampleImages).catch(function (error) {
+        if (window.console && console.error) console.error('Prompt image cleanup failed:', error);
+      });
     }
   });
 
@@ -555,25 +788,83 @@
     render();
   });
 
+  kindFilter.addEventListener('change', function (event) {
+    state.kind = event.target.value;
+    render();
+  });
+
   category.addEventListener('change', function (event) {
     state.category = event.target.value;
     render();
   });
 
-  form.addEventListener('submit', function (event) {
+  modelFilter.addEventListener('change', function (event) {
+    state.model = event.target.value;
+    render();
+  });
+
+  syntaxFilter.addEventListener('change', function (event) {
+    state.syntax = event.target.value;
+    render();
+  });
+
+  formKind.addEventListener('change', function () {
+    toggleImageFields();
+    if (formKind.value !== 'image') {
+      state.formImages.pending = [];
+      renderFormImages();
+    }
+  });
+
+  imageInput.addEventListener('change', function (event) {
+    var files = Array.prototype.slice.call(event.target.files || []);
+    var available = 8 - state.formImages.existing.length - state.formImages.pending.length;
+    var accepted = [];
+    files.forEach(function (file) {
+      if (accepted.length >= available) return;
+      if (!/^image\//i.test(file.type) || file.size > 8 * 1024 * 1024) return;
+      accepted.push(file);
+    });
+    state.formImages.pending = state.formImages.pending.concat(accepted);
+    imageInput.value = '';
+    renderFormImages();
+  });
+
+  form.addEventListener('submit', async function (event) {
     event.preventDefault();
     var prompt = readForm();
     if (!prompt) {
       setFormError('标题和提示词内容不能为空。');
       return;
     }
+    var previous = state.prompts.find(function (item) { return item.id === prompt.id; });
+    var pending = formKind.value === 'image' ? state.formImages.pending.slice() : [];
+    if (pending.length && !state.user) {
+      setFormError('上传示例图片前请先登录同步账户。');
+      return;
+    }
+    setFormSaving(true);
+    try {
+      if (pending.length) prompt.exampleImages = prompt.exampleImages.concat(await uploadPendingImages(prompt.id, pending));
+    } catch (error) {
+      setFormError(error.message || '示例图片上传失败，请稍后重试。');
+      setFormSaving(false);
+      return;
+    }
     var existingIndex = state.prompts.findIndex(function (item) { return item.id === prompt.id; });
     if (existingIndex === -1) state.prompts.unshift(prompt);
     else state.prompts[existingIndex] = prompt;
+    var removedImages = previous ? previous.exampleImages.filter(function (oldImage) {
+      return !prompt.exampleImages.some(function (image) { return image.path && image.path === oldImage.path; });
+    }) : [];
     savePrompts();
+    setFormSaving(false);
     closeForm();
     render();
     syncOneToCloud(prompt);
+    if (removedImages.length) removeStoredImages(removedImages).catch(function (error) {
+      if (window.console && console.error) console.error('Prompt image cleanup failed:', error);
+    });
   });
 
   authForm.addEventListener('submit', function (event) {
