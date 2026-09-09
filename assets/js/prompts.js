@@ -198,7 +198,7 @@
       model: kind === 'image' ? String(prompt.model || '').trim().slice(0, 80) : '',
       syntax: kind === 'image' ? syntax : 'natural_language',
       exampleImages: kind === 'image' ? exampleImages : [],
-      isBuiltin: prompt.isBuiltin === true || (typeof prompt.isBuiltin === 'undefined' && !!BUILTIN_PROMPT_IDS[id]),
+      isBuiltin: !!BUILTIN_PROMPT_IDS[id] && prompt.isBuiltin !== false,
       updatedAt: Number.isNaN(updatedTime) ? new Date().toISOString() : new Date(updatedTime).toISOString()
     };
   }
