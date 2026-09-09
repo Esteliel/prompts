@@ -35,7 +35,7 @@
 
   var search = document.getElementById('prompt-search');
   var kindFilter = document.getElementById('prompt-kind');
-  var category = document.getElementById('prompt-category');
+  var categoryNav = document.getElementById('prompt-category-nav');
   var modelFilter = document.getElementById('prompt-model-filter');
   var syntaxFilter = document.getElementById('prompt-syntax-filter');
   var summary = document.getElementById('prompt-summary');
@@ -75,6 +75,7 @@
     mixed: '混合格式',
     other: '其他'
   };
+  var DEFAULT_CATEGORIES = ['编程', '办公', '角色卡', '语言', '教育', '设计', '绘画'];
 
   var localState = readLocalPrompts();
   var state = {
@@ -194,13 +195,13 @@
   }
 
   function renderCategories() {
-    var categories = state.prompts.map(function (prompt) { return prompt.category; }).filter(unique).sort();
-    var options = '<option value="">全部分类</option>' + categories.map(function (item) {
-      return '<option value="' + escapeHtml(item) + '">' + escapeHtml(item) + '</option>';
-    }).join('');
-    category.innerHTML = options;
-    category.value = categories.indexOf(state.category) === -1 ? '' : state.category;
-    state.category = category.value;
+    var categories = DEFAULT_CATEGORIES.concat(state.prompts.map(function (prompt) { return prompt.category; }))
+      .filter(Boolean).filter(unique);
+    if (state.category && categories.indexOf(state.category) === -1) state.category = '';
+    categoryNav.innerHTML = '<button class="prompt-category-nav__item" type="button" data-category="" aria-current="' + (!state.category ? 'true' : 'false') + '">全部提示词</button>' +
+      categories.map(function (item) {
+        return '<button class="prompt-category-nav__item" type="button" data-category="' + escapeHtml(item) + '" aria-current="' + (state.category === item ? 'true' : 'false') + '">' + escapeHtml(item) + '</button>';
+      }).join('');
 
     var models = state.prompts.map(function (prompt) { return prompt.model; }).filter(Boolean).filter(unique).sort();
     modelFilter.innerHTML = '<option value="">全部模型</option>' + models.map(function (item) {
@@ -795,8 +796,10 @@
     render();
   });
 
-  category.addEventListener('change', function (event) {
-    state.category = event.target.value;
+  categoryNav.addEventListener('click', function (event) {
+    var button = event.target.closest('[data-category]');
+    if (!button) return;
+    state.category = button.getAttribute('data-category') || '';
     render();
   });
 

@@ -1,89 +1,91 @@
 ---
 title: 提示词管理 · Esteliel
 description: 跨浏览器同步的个人提示词管理工具。
-stylesheet: /assets/css/prompts.css?v=3
-script: /assets/js/prompts.js?v=3
+stylesheet: /assets/css/prompts.css?v=4
+script: /assets/js/prompts.js?v=4
 supabase: true
 ---
 <div class="prompt-manager">
   <a class="back-link" href="{{ site.url }}/tools/">← 返回工具</a>
 
-  <header class="section-intro prompt-hero">
-    <p class="eyebrow">01 / PROMPTS</p>
-    <h1>提示词管理</h1>
-    <p class="intro-copy">把灵感和工作流收进一个安静、好找的地方。</p>
-    <p class="prompt-storage-note">未登录时保存在当前浏览器；登录后会同步到云端。</p>
+  <header class="prompt-banner">
+    <div class="prompt-banner__title">
+      <p class="eyebrow">01 / PROMPTS</p>
+      <h1>提示词管理</h1>
+    </div>
+    <section class="prompt-account" aria-label="云端同步账户">
+      <div class="prompt-account__copy">
+        <span class="prompt-account__eyebrow">CLOUD SYNC</span>
+        <strong id="prompt-auth-status">正在检查同步状态……</strong>
+        <span id="prompt-auth-detail">登录后可在不同浏览器之间同步提示词。</span>
+      </div>
+      <div class="prompt-account__actions">
+        <button class="button button--quiet" type="button" data-action="sign-in">登录同步</button>
+        <button class="button button--quiet" type="button" data-action="sign-out" hidden>退出登录</button>
+      </div>
+    </section>
   </header>
 
-  <section class="prompt-account" aria-label="云端同步账户">
-    <div class="prompt-account__copy">
-      <span class="prompt-account__eyebrow">CLOUD SYNC</span>
-      <strong id="prompt-auth-status">正在检查同步状态……</strong>
-      <span id="prompt-auth-detail">登录后可在不同浏览器之间同步提示词。</span>
-    </div>
-    <div class="prompt-account__actions">
-      <button class="button button--quiet" type="button" data-action="sign-in">登录同步</button>
-      <button class="button button--quiet" type="button" data-action="sign-out" hidden>退出登录</button>
-    </div>
-  </section>
+  <div class="prompt-layout">
+    <aside class="prompt-sidebar" aria-label="提示词分类">
+      <p class="prompt-sidebar__title">分类</p>
+      <nav id="prompt-category-nav" class="prompt-category-nav" aria-label="按分类筛选"></nav>
+    </aside>
 
-  <section class="prompt-toolbar" aria-label="提示词筛选与操作">
-    <div class="prompt-toolbar__field prompt-toolbar__field--search">
-      <label for="prompt-search">搜索提示词</label>
-      <input id="prompt-search" type="search" placeholder="搜索标题、内容或标签" autocomplete="off">
-    </div>
-    <div class="prompt-toolbar__field">
-      <label for="prompt-kind">类型</label>
-      <select id="prompt-kind">
-        <option value="">全部类型</option>
-        <option value="text">普通提示词</option>
-        <option value="image">绘画提示词</option>
-      </select>
-    </div>
-    <div class="prompt-toolbar__field">
-      <label for="prompt-category">分类</label>
-      <select id="prompt-category">
-        <option value="">全部分类</option>
-      </select>
-    </div>
-    <div class="prompt-toolbar__field">
-      <label for="prompt-model-filter">模型</label>
-      <select id="prompt-model-filter">
-        <option value="">全部模型</option>
-      </select>
-    </div>
-    <div class="prompt-toolbar__field">
-      <label for="prompt-syntax-filter">提示词格式</label>
-      <select id="prompt-syntax-filter">
-        <option value="">全部格式</option>
-      </select>
-    </div>
-    <button class="button button--primary" type="button" data-action="new">＋ 新建提示词</button>
-  </section>
+    <main class="prompt-main">
+      <section class="prompt-toolbar" aria-label="提示词筛选与操作">
+        <div class="prompt-toolbar__field prompt-toolbar__field--search">
+          <label for="prompt-search">搜索提示词</label>
+          <input id="prompt-search" type="search" placeholder="搜索标题、内容或标签" autocomplete="off">
+        </div>
+        <div class="prompt-toolbar__field">
+          <label for="prompt-kind">类型</label>
+          <select id="prompt-kind">
+            <option value="">全部类型</option>
+            <option value="text">普通提示词</option>
+            <option value="image">绘画提示词</option>
+          </select>
+        </div>
+        <div class="prompt-toolbar__field">
+          <label for="prompt-model-filter">模型</label>
+          <select id="prompt-model-filter">
+            <option value="">全部模型</option>
+          </select>
+        </div>
+        <div class="prompt-toolbar__field">
+          <label for="prompt-syntax-filter">提示词格式</label>
+          <select id="prompt-syntax-filter">
+            <option value="">全部格式</option>
+          </select>
+        </div>
+        <button class="button button--primary" type="button" data-action="new">＋ 新建提示词</button>
+      </section>
 
-  <div class="prompt-meta">
-    <p id="prompt-summary" class="prompt-summary" aria-live="polite"></p>
-    <div class="prompt-meta__actions">
-      <button class="button button--quiet" type="button" data-action="export">导出 JSON</button>
-      <button class="button button--quiet" type="button" data-action="import">导入 JSON</button>
-      <input id="prompt-import" type="file" accept="application/json,.json" hidden>
-    </div>
+      <div class="prompt-meta">
+        <p id="prompt-summary" class="prompt-summary" aria-live="polite"></p>
+        <div class="prompt-meta__actions">
+          <button class="button button--quiet" type="button" data-action="export">导出 JSON</button>
+          <button class="button button--quiet" type="button" data-action="import">导入 JSON</button>
+          <input id="prompt-import" type="file" accept="application/json,.json" hidden>
+        </div>
+      </div>
+
+      <section id="prompt-list" class="prompt-grid" aria-label="提示词列表"></section>
+
+      <noscript>
+        <section class="empty-state prompt-empty">
+          <h2>需要启用 JavaScript</h2>
+          <p>提示词管理依赖浏览器脚本来保存和筛选内容。</p>
+        </section>
+      </noscript>
+
+      <section id="prompt-empty" class="empty-state prompt-empty" aria-labelledby="prompt-empty-title" hidden>
+        <h2 id="prompt-empty-title">还没有匹配的提示词</h2>
+        <p id="prompt-empty-copy">新建一条提示词，或者换个关键词试试。</p>
+        <button class="button button--quiet" type="button" data-action="clear-filters">清除筛选</button>
+      </section>
+    </main>
   </div>
-
-  <section id="prompt-list" class="prompt-grid" aria-label="提示词列表"></section>
-
-  <noscript>
-    <section class="empty-state prompt-empty">
-      <h2>需要启用 JavaScript</h2>
-      <p>提示词管理依赖浏览器脚本来保存和筛选内容。</p>
-    </section>
-  </noscript>
-
-  <section id="prompt-empty" class="empty-state prompt-empty" aria-labelledby="prompt-empty-title" hidden>
-    <h2 id="prompt-empty-title">还没有匹配的提示词</h2>
-    <p id="prompt-empty-copy">新建一条提示词，或者换个关键词试试。</p>
-    <button class="button button--quiet" type="button" data-action="clear-filters">清除筛选</button>
-  </section>
 </div>
 
 <dialog id="prompt-dialog" class="prompt-dialog" aria-labelledby="prompt-dialog-title">
