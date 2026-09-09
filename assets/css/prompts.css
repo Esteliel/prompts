@@ -40,6 +40,8 @@
   gap: 7px;
 }
 
+.prompt-image-field[hidden] { display: none; }
+
 .prompt-toolbar__field label,
 .prompt-form__field label {
   color: #adc1ce;
