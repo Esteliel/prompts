@@ -116,7 +116,11 @@
     localPersisted: localState.persisted,
     localOwner: localState.owner,
     query: '',
-    kind: '',
+    kind: 'text',
+    space: 'hall',
+    shared: [],
+    publishedIds: [],
+    communityReady: false,
     category: '',
     model: '',
     syntax: '',
@@ -134,6 +138,10 @@
       if (saved !== null) {
         var parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
+          // Remember persisted builtin identity until the asynchronous catalog arrives.
+          parsed.forEach(function (prompt) {
+            if (prompt && prompt.isBuiltin === true && prompt.id) BUILTIN_PROMPT_IDS[String(prompt.id)] = true;
+          });
           return { prompts: mergeBuiltinPrompts(parsed.map(normalizePrompt).filter(Boolean)), persisted: true, owner: window.localStorage.getItem(LOCAL_OWNER_KEY) || '' };
         }
       }
@@ -232,6 +240,7 @@
     var exampleImages = Array.isArray(prompt.exampleImages) ? prompt.exampleImages.map(normalizeImage).filter(Boolean).slice(0, 8) : [];
     return {
       id: id,
+      sourceId: String(prompt.sourceId || '').slice(0, 240),
       title: title.slice(0, 80),
       category: String(prompt.category || '未分类').trim().slice(0, 30) || '未分类',
       tags: tags.map(function (tag) { return String(tag).trim(); }).filter(Boolean).filter(unique).slice(0, 12),
@@ -308,10 +317,10 @@
 
   function getFilteredPrompts() {
     var query = state.query.toLocaleLowerCase();
-    return state.prompts.filter(function (prompt) {
+    return getSpacePrompts().filter(function (prompt) {
       var matchesKind = !state.kind || prompt.kind === state.kind;
       var matchesCategory = !state.category || prompt.category === state.category;
-      var matchesModel = !state.model || prompt.model === state.model;
+      var matchesModel = !state.model || (prompt.model || '未分类') === state.model;
       var matchesSyntax = !state.syntax || prompt.syntax === state.syntax;
       if (!matchesKind || !matchesCategory || !matchesModel || !matchesSyntax) return false;
       if (!query) return true;
@@ -320,88 +329,73 @@
     });
   }
 
+  function getSpacePrompts() {
+    return state.space === 'personal' ? getUserPrompts() : BUILTIN_PROMPTS.concat(state.shared);
+  }
+
   function renderCategories() {
-    var categories = DEFAULT_CATEGORIES.concat(state.prompts.map(function (prompt) { return prompt.category; }))
-      .filter(Boolean).filter(unique);
-    if (state.category && categories.indexOf(state.category) === -1) state.category = '';
-    categoryNav.innerHTML = '<button class="prompt-category-nav__item" type="button" data-category="" aria-current="' + (!state.category ? 'true' : 'false') + '">全部提示词</button>' +
-      categories.map(function (item) {
-        return '<button class="prompt-category-nav__item" type="button" data-category="' + escapeHtml(item) + '" aria-current="' + (state.category === item ? 'true' : 'false') + '">' + escapeHtml(item) + '</button>';
-      }).join('');
-
-    var models = state.prompts.map(function (prompt) { return prompt.model; }).filter(Boolean).filter(unique).sort();
-    modelFilter.innerHTML = '<option value="">全部模型</option>' + models.map(function (item) {
-      return '<option value="' + escapeHtml(item) + '">' + escapeHtml(item) + '</option>';
+    var prompts = getSpacePrompts().filter(function (prompt) { return prompt.kind === state.kind; });
+    var isImage = state.kind === 'image';
+    var field = isImage ? 'model' : 'category';
+    var selected = isImage ? state.model : state.category;
+    var categories = prompts.map(function (prompt) { return prompt[field] || '未分类'; }).filter(unique).sort();
+    if (selected && categories.indexOf(selected) === -1) selected = '';
+    if (isImage) state.model = selected; else state.category = selected;
+    document.getElementById('prompt-category-title').textContent = isImage ? '模型 / 平台' : '场景分类';
+    categoryNav.innerHTML = [''].concat(categories).map(function (item) {
+      var count = item ? prompts.filter(function (prompt) { return (prompt[field] || '未分类') === item; }).length : prompts.length;
+      return '<button class="prompt-category-nav__item" type="button" data-category="' + escapeHtml(item) + '" aria-current="' + (selected === item) + '"><span>' + escapeHtml(item || (isImage ? '全部模型' : '全部场景')) + '</span><small>' + count + '</small></button>';
     }).join('');
-    modelFilter.value = models.indexOf(state.model) === -1 ? '' : state.model;
-    state.model = modelFilter.value;
-
-    var syntaxes = state.prompts.map(function (prompt) { return prompt.syntax; }).filter(Boolean).filter(unique).sort();
-    syntaxFilter.innerHTML = '<option value="">全部格式</option>' + syntaxes.map(function (item) {
-      return '<option value="' + escapeHtml(item) + '">' + escapeHtml(SYNTAX_LABELS[item] || item) + '</option>';
-    }).join('');
-    syntaxFilter.value = syntaxes.indexOf(state.syntax) === -1 ? '' : state.syntax;
-    state.syntax = syntaxFilter.value;
+    syntaxFilter.parentElement.hidden = !isImage;
+    syntaxFilter.innerHTML = '<option value="">全部格式</option>' + Object.keys(SYNTAX_LABELS).map(function (key) { return '<option value="' + key + '">' + SYNTAX_LABELS[key] + '</option>'; }).join('');
+    syntaxFilter.value = state.syntax;
     kindFilter.value = state.kind;
+    document.querySelectorAll('[data-kind]').forEach(function (button) { button.setAttribute('aria-pressed', String(button.dataset.kind === state.kind)); });
+    document.querySelectorAll('[data-space]').forEach(function (button) { button.setAttribute('aria-pressed', String(button.dataset.space === state.space)); });
+    document.getElementById('prompt-page-title').textContent = state.space === 'personal' ? '我的提示词库' : isImage ? '用提示词，打开想象力' : '发现好用的提示词';
+    document.getElementById('prompt-page-description').textContent = state.space === 'personal' ? '收藏、创作与整理，让灵感随时可用。' : isImage ? '探索画风、角色与场景，找到下一张作品的灵感。' : '收集灵感，让每一次对话更有价值。';
+    document.querySelector('.prompt-meta__actions').hidden = state.space !== 'personal';
   }
 
   function render() {
     renderCategories();
     var visible = getFilteredPrompts();
-    summary.textContent = state.prompts.length + ' 条提示词 · 当前显示 ' + visible.length + ' 条';
+    summary.textContent = '找到 ' + visible.length + ' 条提示词';
     var paintingMode = visible.length > 0 && visible.every(function (prompt) { return prompt.kind === 'image'; });
     list.classList.toggle('prompt-grid--painting', paintingMode);
     list.innerHTML = visible.map(renderCard).join('');
-    var noPrompts = state.prompts.length === 0;
+    var noPrompts = getSpacePrompts().length === 0;
     empty.hidden = visible.length !== 0;
     emptyTitle.textContent = noPrompts ? '还没有提示词' : '还没有匹配的提示词';
     emptyCopy.textContent = noPrompts ? '新建一条提示词，把常用工作流收进来。' : '换个关键词，或者清除筛选试试。';
     hydrateImageUrls();
+    translateUI();
+  }
+
+  function cardActions(prompt) {
+    var footer = '<button class="button button--quiet" type="button" data-action="copy">复制</button>';
+    if (state.space === 'hall') {
+      var collected = getUserPrompts().some(function (item) { return item.sourceId === prompt.id; });
+      footer += '<button class="button button--quiet" type="button" data-action="favorite"' + (collected ? ' disabled' : '') + '>' + (collected ? '已收藏' : '☆ 收藏') + '</button>';
+    } else {
+      footer += '<button class="button button--quiet" type="button" data-action="edit">编辑</button>';
+      var published = state.publishedIds.indexOf(prompt.id) !== -1;
+      footer += '<button class="button button--quiet" type="button" data-action="publish">' + (published ? '更新共享' : '公开共享') + '</button>';
+      if (published) footer += '<button class="button button--quiet" type="button" data-action="unpublish">撤回共享</button>';
+      footer += '<button class="button button--quiet" type="button" data-action="delete">删除</button>';
+    }
+    return footer;
   }
 
   function renderCard(prompt) {
     if (prompt.kind === 'image') return renderPaintingCard(prompt);
-    var tags = prompt.tags.map(function (tag) {
-      return '<span class="prompt-tag">' + escapeHtml(tag) + '</span>';
-    }).join('');
-    var preview = prompt.content.length > 420 ? prompt.content.slice(0, 420) + '…' : prompt.content;
-    var typeLabel = prompt.kind === 'image' ? '绘画提示词' : '普通提示词';
-    var badges = '<span class="prompt-card__badge">' + escapeHtml(typeLabel) + '</span>';
-    if (prompt.isBuiltin) badges += '<span class="prompt-card__badge prompt-card__badge--accent">网站内置</span>';
-    if (prompt.kind === 'image') {
-      badges += '<span class="prompt-card__badge prompt-card__badge--accent">' + escapeHtml(PROMPT_PART_LABELS[prompt.promptPart] || prompt.promptPart) + '</span>';
-      if (prompt.model) badges += '<span class="prompt-card__badge">' + escapeHtml(prompt.model) + '</span>';
-      badges += '<span class="prompt-card__badge">' + escapeHtml(SYNTAX_LABELS[prompt.syntax] || prompt.syntax) + '</span>';
-    }
-    var images = prompt.exampleImages.map(function (image) {
-      var immediateUrl = getImmediateImageUrl(image);
-      var imagePathAttribute = image.path && !immediateUrl ? ' data-image-path="' + escapeHtml(image.path) + '"' : '';
-      return '<a class="prompt-card__image-link" href="' + (immediateUrl ? escapeHtml(immediateUrl) : '#') + '" target="_blank" rel="noreferrer"' + imagePathAttribute + '>' +
-        '<figure class="prompt-card__image-figure">' +
-          '<img class="prompt-card__image"' + (immediateUrl ? ' src="' + escapeHtml(immediateUrl) + '"' : ' hidden') + imagePathAttribute + ' alt="' + escapeHtml(image.alt) + '">' +
-          '<span class="prompt-card__image-placeholder"' + (immediateUrl ? ' hidden' : '') + '>示例图</span>' +
-        '</figure>' +
-      '</a>';
-    }).join('');
-    var imageBlock = images ? '<div class="prompt-card__images" aria-label="示例图片">' + images + '</div>' : '';
-    var footer = '<button class="button button--quiet" type="button" data-action="copy" aria-label="复制：' + escapeHtml(prompt.title) + '">复制</button>';
-    if (prompt.isBuiltin) {
-      footer += '<button class="button button--quiet" type="button" data-action="duplicate" aria-label="复制为自定义：' + escapeHtml(prompt.title) + '">复制为自定义</button>';
-    } else {
-      footer += '<button class="button button--quiet" type="button" data-action="edit" aria-label="编辑：' + escapeHtml(prompt.title) + '">编辑</button>' +
-        '<button class="button button--quiet" type="button" data-action="delete" aria-label="删除：' + escapeHtml(prompt.title) + '">删除</button>';
-    }
-    return '<article class="prompt-card' + (prompt.kind === 'image' ? ' prompt-card--image' : '') + '" data-prompt-id="' + escapeHtml(prompt.id) + '">' +
-      '<header class="prompt-card__header"><div><h2>' + escapeHtml(prompt.title) + '</h2><span class="prompt-card__type">' + escapeHtml(typeLabel) + '</span></div><span class="prompt-card__category">' + escapeHtml(prompt.category) + '</span></header>' +
+    return '<article class="prompt-card" data-prompt-id="' + escapeHtml(prompt.id) + '">' +
+      '<header class="prompt-card__header"><span class="prompt-card__symbol" aria-hidden="true">⌘</span><span class="prompt-card__category">' + escapeHtml(prompt.category) + '</span></header>' +
+      '<h2><button class="prompt-title-button" type="button" data-action="preview">' + escapeHtml(prompt.title) + '</button></h2>' +
       '<p class="prompt-card__description">' + escapeHtml(prompt.description || '暂无简介') + '</p>' +
-      '<div class="prompt-card__badges" aria-label="提示词属性">' + badges + '</div>' +
-      imageBlock +
-      '<pre class="prompt-card__content"><code>' + escapeHtml(preview) + '</code></pre>' +
-      '<div class="prompt-card__tags" aria-label="标签">' + tags + '</div>' +
-      '<footer class="prompt-card__footer">' +
-        footer +
-      '</footer>' +
-      '</article>';
+      '<pre class="prompt-card__content">' + escapeHtml(prompt.content.slice(0, 260)) + '</pre>' +
+      '<div class="prompt-card__tags">' + prompt.tags.map(function (tag) { return '<span class="prompt-tag">' + escapeHtml(tag) + '</span>'; }).join('') + '</div>' +
+      '<footer class="prompt-card__footer">' + cardActions(prompt) + '</footer></article>';
   }
 
   function renderPaintingCard(prompt) {
@@ -410,17 +404,10 @@
     var imagePathAttribute = firstImage && firstImage.path && !immediateUrl ? ' data-image-path="' + escapeHtml(firstImage.path) + '"' : '';
     var image = firstImage ? '<img class="prompt-card__image"' + (immediateUrl ? ' src="' + escapeHtml(immediateUrl) + '"' : ' hidden') + imagePathAttribute + ' alt="' + escapeHtml(firstImage.alt) + '">' : '';
     var placeholder = '<span class="prompt-card__image-placeholder"' + (immediateUrl ? ' hidden' : '') + '>' + (firstImage ? '示例图' : '暂无示例图') + '</span>';
-    var badges = '<span class="prompt-card__badge">绘画提示词</span><span class="prompt-card__badge">' + escapeHtml(PROMPT_PART_LABELS[prompt.promptPart] || prompt.promptPart) + '</span>';
+    var badges = '<span class="prompt-card__badge">' + escapeHtml(PROMPT_PART_LABELS[prompt.promptPart] || prompt.promptPart) + '</span>';
     if (prompt.model) badges += '<span class="prompt-card__badge">' + escapeHtml(prompt.model) + '</span>';
     badges += '<span class="prompt-card__badge">' + escapeHtml(SYNTAX_LABELS[prompt.syntax] || prompt.syntax) + '</span>';
-    if (prompt.isBuiltin) badges += '<span class="prompt-card__badge prompt-card__badge--accent">网站内置</span>';
-    var footer = '<button class="button button--quiet" type="button" data-action="copy" aria-label="复制：' + escapeHtml(prompt.title) + '">复制</button>';
-    if (prompt.isBuiltin) {
-      footer += '<button class="button button--quiet" type="button" data-action="duplicate" aria-label="复制为自定义：' + escapeHtml(prompt.title) + '">复制为自定义</button>';
-    } else {
-      footer += '<button class="button button--quiet" type="button" data-action="edit" aria-label="编辑：' + escapeHtml(prompt.title) + '">编辑</button>' +
-        '<button class="button button--quiet" type="button" data-action="delete" aria-label="删除：' + escapeHtml(prompt.title) + '">删除</button>';
-    }
+    var footer = cardActions(prompt);
     return '<article class="prompt-card prompt-card--image prompt-card--gallery" data-prompt-id="' + escapeHtml(prompt.id) + '">' +
       '<button class="prompt-card__visual" type="button" data-action="preview" aria-label="查看：' + escapeHtml(prompt.title) + '">' +
         '<figure class="prompt-card__image-figure">' + image + placeholder + '</figure>' +
@@ -460,7 +447,7 @@
   }
 
   function findPrompt(id) {
-    return state.prompts.find(function (prompt) { return prompt.id === id; });
+    return state.prompts.concat(state.shared).find(function (prompt) { return prompt.id === id; });
   }
 
   function openPreview(prompt) {
@@ -490,7 +477,8 @@
     var meta = [PROMPT_PART_LABELS[prompt.promptPart] || prompt.promptPart];
     if (prompt.model) meta.push(prompt.model);
     meta.push(SYNTAX_LABELS[prompt.syntax] || prompt.syntax);
-    if (prompt.isBuiltin) meta.push('网站内置');
+    if (prompt.kind !== 'image') meta = prompt.tags;
+    previewDialog.classList.toggle('prompt-preview-dialog--text', prompt.kind !== 'image');
     previewMeta.innerHTML = meta.map(function (item) {
       return '<span class="prompt-preview__meta-item">' + escapeHtml(item) + '</span>';
     }).join('');
@@ -510,6 +498,10 @@
     }).join('');
     setPreviewImage(prompt, state.preview.imageIndex);
     hydratePreviewThumbs();
+    var saveButton = document.querySelector('[data-action="preview-duplicate"]');
+    saveButton.disabled = false;
+    saveButton.textContent = state.space === 'hall' ? '☆ 收藏' : '复制为自定义';
+    translateUI();
   }
 
   function setPreviewImage(prompt, imageIndex) {
@@ -580,7 +572,7 @@
     document.getElementById('prompt-tags').value = prompt ? prompt.tags.join('，') : '';
     document.getElementById('prompt-description').value = prompt ? prompt.description : '';
     document.getElementById('prompt-content').value = prompt ? prompt.content : '';
-    formKind.value = prompt && prompt.kind === 'image' ? 'image' : 'text';
+    formKind.value = prompt ? prompt.kind : state.kind;
     formPart.value = prompt && prompt.promptPart ? prompt.promptPart : 'complete';
     formModel.value = prompt && prompt.model ? prompt.model : '';
     formSyntax.value = prompt && prompt.syntax ? prompt.syntax : 'natural_language';
@@ -593,6 +585,7 @@
     renderFormImages();
     document.getElementById('prompt-dialog-title').textContent = prompt ? '编辑提示词' : '新建提示词';
     setFormError('');
+    translateUI();
     if (typeof dialog.showModal === 'function') dialog.showModal();
     else dialog.setAttribute('open', 'open');
     window.setTimeout(function () { document.getElementById('prompt-title').focus(); }, 0);
@@ -651,6 +644,7 @@
       promptPart: formPart.value,
       model: formModel.value,
       syntax: formSyntax.value,
+      sourceId: (findPrompt(document.getElementById('prompt-id').value) || {}).sourceId,
       exampleImages: state.formImages.existing,
       updatedAt: new Date().toISOString()
     });
@@ -693,7 +687,7 @@
 
   function removeStoredImages(images) {
     if (!state.user || !state.client || !state.client.storage || !images || !images.length) return Promise.resolve();
-    var paths = images.map(function (image) { return image.path; }).filter(Boolean);
+    var paths = images.map(function (image) { return image.path; }).filter(function (path) { return path && path.indexOf(state.user.id + '/') === 0; });
     if (!paths.length) return Promise.resolve();
     return state.client.storage.from('prompt-examples').remove(paths).then(function (result) {
       if (result.error) throw result.error;
@@ -761,7 +755,7 @@
   }
 
   function exportPrompts() {
-    var blob = new Blob([JSON.stringify(state.prompts, null, 2)], { type: 'application/json' });
+    var blob = new Blob([JSON.stringify(getUserPrompts(), null, 2)], { type: 'application/json' });
     var url = URL.createObjectURL(blob);
     var link = document.createElement('a');
     link.href = url;
@@ -787,7 +781,8 @@
         }
         state.prompts = mergeBuiltinPrompts(imported);
         state.query = '';
-        state.kind = '';
+        state.kind = 'text';
+        state.space = 'personal';
         state.category = '';
         state.model = '';
         state.syntax = '';
@@ -806,6 +801,7 @@
   function setAuthStatus(title, detail, status) {
     if (authStatus) authStatus.textContent = title;
     if (authDetail) authDetail.textContent = detail;
+    translateUI();
     var account = document.querySelector('.prompt-account');
     if (account) account.dataset.status = status || '';
   }
@@ -824,9 +820,11 @@
   }
 
   function openAuthDialog() {
-    if (!authDialog || !state.client || authDialog.open) return;
+    if (!state.client) return toast('云端连接不可用，请稍后重试。');
+    if (!authDialog || authDialog.open) return;
     authForm.reset();
     setAuthMessage('');
+    translateUI();
     if (typeof authDialog.showModal === 'function') authDialog.showModal();
     else authDialog.setAttribute('open', 'open');
     window.setTimeout(function () { authEmail.focus(); }, 0);
@@ -855,7 +853,8 @@
 
   function getRemoteRows() {
     return state.client.from('prompts')
-      .select('id,user_id,title,category,tags,description,content,kind,prompt_part,model,syntax,example_images,updated_at')
+      .select('*')
+      .eq('user_id', state.user.id)
       .order('updated_at', { ascending: false })
       .then(function (result) {
         if (result.error) throw result.error;
@@ -867,6 +866,7 @@
     return {
       id: prompt.id,
       user_id: state.user.id,
+      source_id: prompt.sourceId,
       title: prompt.title,
       category: prompt.category,
       tags: prompt.tags,
@@ -884,6 +884,7 @@
   function fromRemoteRow(row) {
     return normalizePrompt({
       id: row.id,
+      sourceId: row.source_id,
       title: row.title,
       category: row.category,
       tags: row.tags,
@@ -906,10 +907,16 @@
     });
   }
 
-  function deleteRemote(id) {
-    return state.client.from('prompts').delete().eq('id', id).eq('user_id', state.user.id).then(function (result) {
-      if (result.error) throw result.error;
-    });
+  async function deleteRemote(id) {
+    // Imports can remove published items too; clean their public image copies first.
+    var shared = await state.client.from('shared_prompts').select('image_paths').eq('user_id', state.user.id).eq('id', id).maybeSingle();
+    if (shared.error) throw shared.error;
+    if (shared.data && shared.data.image_paths.length) {
+      var cleanup = await state.client.storage.from('shared-examples').remove(shared.data.image_paths);
+      if (cleanup.error) throw cleanup.error;
+    }
+    var result = await state.client.from('prompts').delete().eq('id', id).eq('user_id', state.user.id);
+    if (result.error) throw result.error;
   }
 
   function mergePrompts(remotePrompts, localPrompts) {
@@ -981,6 +988,7 @@
     if (!state.client || !state.user) return;
     updateSignedInStatus('正在从云端删除……', 'syncing');
     deleteRemote(id).then(function () {
+      loadCommunity();
       return removeStoredImages(images || []);
     }).then(function () {
       updateSignedInStatus('已同步 · ' + state.prompts.length + ' 条提示词', 'online');
@@ -1011,6 +1019,178 @@
     }
   }
 
+  function toast(message) {
+    var node = document.getElementById('prompt-toast');
+    node.textContent = language === 'en' && translations[message] ? translations[message] : message; node.hidden = false;
+    window.clearTimeout(toast.timer);
+    toast.timer = window.setTimeout(function () { node.hidden = true; }, 5000);
+  }
+
+  async function loadCommunity() {
+    if (!state.client) return;
+    var status = document.getElementById('prompt-community-status');
+    try {
+      var result = await state.client.from('shared_prompts').select('id,user_id,payload,updated_at').order('updated_at', { ascending: false });
+      if (result.error) throw result.error;
+      state.publishedIds = [];
+      state.shared = (result.data || []).map(function (row) {
+        if (state.user && row.user_id === state.user.id) state.publishedIds.push(row.id);
+        return normalizePrompt(Object.assign({}, row.payload, { id: 'shared:' + row.user_id + ':' + row.id, isBuiltin: false, updatedAt: row.updated_at }));
+      }).filter(Boolean);
+      state.communityReady = true;
+      status.hidden = true;
+      render();
+    } catch (error) {
+      state.communityReady = false;
+      status.textContent = '共享大厅暂时无法连接，仍可浏览站点精选和使用个人库。';
+      status.hidden = false;
+    }
+  }
+
+  async function favoritePrompt(prompt, button) {
+    if (getUserPrompts().some(function (item) { return item.sourceId === prompt.id; })) return toast('已经收藏到个人库。');
+    // Public image copies are downloaded into the collector's own private storage.
+    var remoteImages = prompt.exampleImages.filter(function (image) { return image.url && image.url.indexOf('/storage/v1/object/public/shared-examples/') !== -1; });
+    if (remoteImages.length && !state.user) { toast('登录后可连同示例图片一起收藏。'); openAuthDialog(); return; }
+    button.disabled = true;
+    var collectedUploads = [];
+    var copy = normalizePrompt(Object.assign({}, prompt, { id: createId(), sourceId: prompt.id, isBuiltin: false, updatedAt: new Date().toISOString() }));
+    try {
+      var images = [];
+      for (var index = 0; index < copy.exampleImages.length; index += 1) {
+        var image = copy.exampleImages[index];
+        if (remoteImages.indexOf(prompt.exampleImages[index]) !== -1) {
+          var response = await fetch(image.url);
+          if (!response.ok) throw new Error('示例图读取失败');
+          var blob = await response.blob();
+          if (blob.size > 8 * 1024 * 1024) throw new Error('示例图片过大');
+          var uploaded = await uploadPendingImages(copy.id, [new File([blob], image.name, { type: blob.type })]);
+          collectedUploads = collectedUploads.concat(uploaded);
+          images = images.concat(uploaded);
+        } else if (image.url) images.push(Object.assign({}, image, { path: '' }));
+      }
+      copy.exampleImages = images;
+      state.prompts.unshift(copy); savePrompts(); syncOneToCloud(copy); render();
+      toast('已收藏到个人提示词库。');
+    } catch (error) { await removeStoredImages(collectedUploads).catch(function () {}); toast('收藏失败，请稍后重试。'); button.disabled = false; }
+  }
+
+  async function publishPrompt(prompt, retract, button) {
+    if (!state.user) { toast('登录后即可公开共享。'); openAuthDialog(); return; }
+    if (!state.communityReady) { toast('共享服务尚未就绪，请稍后重试。'); return; }
+    if (!retract && !window.confirm('将“' + prompt.title + '”的内容及示例图片公开到共享大厅，所有人都可以查看与收藏。确定发布吗？')) return;
+    button.disabled = true;
+    var userId = state.user.id;
+    var uploadedPaths = [];
+    try {
+      var old = await state.client.from('shared_prompts').select('image_paths').eq('user_id', userId).eq('id', prompt.id).maybeSingle();
+      if (old.error) throw old.error;
+      if (retract) {
+        if (old.data && old.data.image_paths.length) {
+          var retractedImages = await state.client.storage.from('shared-examples').remove(old.data.image_paths);
+          if (retractedImages.error) throw retractedImages.error;
+        }
+        var removed = await state.client.from('shared_prompts').delete().eq('user_id', userId).eq('id', prompt.id);
+        if (removed.error) throw removed.error;
+      } else {
+        await upsertRemote([prompt]);
+        var payload = Object.assign({}, prompt, { sourceId: '', exampleImages: [] });
+        for (var index = 0; index < prompt.exampleImages.length; index += 1) {
+          var image = prompt.exampleImages[index];
+          if (image.path) {
+            var downloaded = await state.client.storage.from('prompt-examples').download(image.path);
+            if (downloaded.error) throw downloaded.error;
+            var path = userId + '/' + prompt.id + '/' + createId() + '.' + getFileExtension({ type: downloaded.data.type, name: image.name });
+            var uploaded = await state.client.storage.from('shared-examples').upload(path, downloaded.data, { contentType: downloaded.data.type, cacheControl: '60' });
+            if (uploaded.error) throw uploaded.error;
+            uploadedPaths.push(path);
+            var publicUrl = state.client.storage.from('shared-examples').getPublicUrl(path).data.publicUrl;
+            payload.exampleImages.push({ path: '', url: publicUrl, name: image.name, alt: image.alt });
+          } else if (image.url) payload.exampleImages.push(Object.assign({}, image, { path: '' }));
+        }
+        var saved = await state.client.from('shared_prompts').upsert({ user_id: userId, id: prompt.id, payload: payload, image_paths: (old.data ? old.data.image_paths : []).concat(uploadedPaths).filter(unique), updated_at: new Date().toISOString() }, { onConflict: 'user_id,id' });
+        if (saved.error) throw saved.error;
+      }
+      uploadedPaths = [];
+      if (!retract && old.data && old.data.image_paths.length) {
+        var cleanup = await state.client.storage.from('shared-examples').remove(old.data.image_paths);
+        if (cleanup.error) toast('共享状态已更新，旧图片清理失败，请稍后重试。');
+      }
+      await loadCommunity();
+      toast(retract ? '已撤回共享。已被收藏的副本不受影响。' : '已发布到共享大厅。');
+    } catch (error) {
+      if (uploadedPaths.length) await state.client.storage.from('shared-examples').remove(uploadedPaths);
+      toast('共享操作失败，个人库内容已保留，请检查云端配置后重试。');
+    } finally { button.disabled = false; }
+  }
+
+  function setTheme(theme) {
+    document.documentElement.dataset.theme = theme;
+    var button = document.querySelector('[data-action="theme"]');
+    button.textContent = theme === 'dark' ? '☼' : '☾';
+    button.setAttribute('aria-pressed', String(theme === 'dark'));
+    try { localStorage.setItem(STORAGE_KEY + '.theme', theme); } catch (error) { /* Storage is optional. */ }
+  }
+
+  var language = 'zh-CN';
+  var translations = {
+    '欢迎来到 Esteliel 提示词共享大厅。': 'Welcome to the Esteliel prompt community.',
+    '收藏喜欢的提示词到个人库，编辑自己的内容，并通过「公开共享」发布到大厅。公开前请检查内容与图片，确保不含隐私且拥有分享权限。': 'Save prompts to your library, edit your own content and publish it with Share publicly. Review your content and images before publishing: remove private information and ensure you have permission to share.',
+    '公开共享保存的是当前版本；修改后可点击「更新共享」。撤回后大厅不再展示，其他人已经收藏的副本仍会保留。': 'Sharing publishes a snapshot. Use Update shared copy after editing. Unsharing removes it from the community; copies already saved by others remain.',
+    '未登录 · 仅当前浏览器': 'Signed out · saved on this browser', '登录后可在不同浏览器之间同步提示词。': 'Sign in to sync your library across browsers.',
+    '绘画提示词组成': 'Prompt component', '可直接使用的完整提示词': 'Complete prompt', '完整提示词': 'Complete prompt',
+    '画风': 'Style', '角色': 'Character', '动作': 'Action', '服装': 'Clothing', '自然语言': 'Natural language', 'Danbooru 标签': 'Danbooru tags', '混合格式': 'Mixed', '其他': 'Other',
+    '登录后图片会保存到云端；单张不超过 8 MB，最多 8 张。': 'Sign in to upload up to 8 images, each no larger than 8 MB.',
+    '输入邮箱后，我们会发送一封登录链接。无需设置密码。': 'Enter your email to receive a sign-in link. No password needed.',
+    '已收藏到个人提示词库。': 'Saved to your library.', '已经收藏到个人库。': 'Already saved to your library.',
+    '登录后即可公开共享。': 'Sign in to share publicly.', '登录后可连同示例图片一起收藏。': 'Sign in to save the example images with this prompt.',
+    '云端连接不可用，请稍后重试。': 'Cloud connection unavailable. Please try again later.',
+    '共享服务尚未就绪，请稍后重试。': 'Community service is unavailable. Please try again later.',
+    '共享大厅暂时无法连接，仍可浏览站点精选和使用个人库。': 'Community is unavailable. You can still browse featured prompts and use your library.',
+    '提示词': 'Prompts', '绘画提示词': 'Image prompts', '系统公告': 'Announcements', '登录': 'Sign in', '退出登录': 'Sign out',
+    '共享大厅': 'Community', '个人提示词': 'My library', '场景分类': 'Categories', '模型 / 平台': 'Models / platforms',
+    '全部场景': 'All categories', '全部模型': 'All models', '全部格式': 'All formats', '提示词格式': 'Format',
+    '发现好用的提示词': 'Discover your next great prompt', '用提示词，打开想象力': 'Bring your imagination to life', '我的提示词库': 'My prompt library',
+    '收集灵感，让每一次对话更有价值。': 'Collect inspiration. Make every conversation count.',
+    '探索画风、角色与场景，找到下一张作品的灵感。': 'Explore styles, characters and scenes for your next creation.',
+    '收藏、创作与整理，让灵感随时可用。': 'Save, create and organize your inspiration.',
+    '＋ 新建提示词': '+ Create prompt', '搜索提示词': 'Search prompts', '复制': 'Copy', '☆ 收藏': '☆ Save', '已收藏': 'Saved',
+    '编辑': 'Edit', '删除': 'Delete', '公开共享': 'Share publicly', '更新共享': 'Update shared copy', '撤回共享': 'Unshare',
+    '导出 JSON': 'Export JSON', '导入 JSON': 'Import JSON', '清除筛选': 'Clear filters', '暂无示例图': 'No example image',
+    '新建提示词': 'Create prompt', '编辑提示词': 'Edit prompt', '取消': 'Cancel', '保存提示词': 'Save prompt', '标题': 'Title',
+    '分类': 'Category', '标签': 'Tags', '简介': 'Description', '提示词内容': 'Prompt content', '类型': 'Type',
+    '普通提示词': 'Text prompt', '模型': 'Model', '示例图片': 'Example images', '邮箱': 'Email', '登录以同步': 'Sign in to sync',
+    '发送登录链接': 'Send sign-in link', '复制提示词': 'Copy prompt', '复制为自定义': 'Save editable copy',
+    '还没有匹配的提示词': 'No matching prompts', '还没有提示词': 'Your library is empty',
+    '换个关键词，或者清除筛选试试。': 'Try another keyword or clear the filters.',
+    '新建一条提示词，把常用工作流收进来。': 'Create a prompt or save one from the community.'
+  };
+  var translatedNodes = new WeakMap();
+  function translateUI() {
+    document.documentElement.lang = language;
+    var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    var node;
+    while ((node = walker.nextNode())) {
+      if (node.parentElement.closest('script, style, .prompt-card h2, .prompt-card__description, .prompt-card__content, .prompt-card__tags, .prompt-card__visual-copy, #prompt-preview-title, #prompt-preview-content, #prompt-preview-description, textarea')) continue;
+      var original = translatedNodes.get(node);
+      if (original && node.textContent.trim() === translations[original]) node.textContent = original;
+      var text = node.textContent.trim();
+      if (translations[text]) { translatedNodes.set(node, text); if (language === 'en') node.textContent = translations[text]; }
+    }
+    if (language === 'en') summary.textContent = getFilteredPrompts().length + ' prompts found';
+    search.placeholder = language === 'en' ? 'Search titles, content or tags' : '搜索标题、内容或标签';
+  }
+  document.getElementById('prompt-language').addEventListener('change', function (event) {
+    language = event.target.value;
+    try { localStorage.setItem(STORAGE_KEY + '.language', language); } catch (error) { /* Optional. */ }
+    render();
+  });
+  try {
+    language = localStorage.getItem(STORAGE_KEY + '.language') === 'en' ? 'en' : 'zh-CN';
+    setTheme(localStorage.getItem(STORAGE_KEY + '.theme') || 'light');
+  } catch (error) { setTheme('light'); }
+  document.getElementById('prompt-language').value = language;
+
   function initSupabase() {
     var config = window.ESTELIEL_SUPABASE;
     if (!config || !config.url || !config.publishableKey || !window.supabase || typeof window.supabase.createClient !== 'function') {
@@ -1025,11 +1205,12 @@
       setAuthStatus('云端配置不可用', '当前继续使用本地数据。', 'error');
       return;
     }
+    loadCommunity();
     state.client.auth.onAuthStateChange(function (event, session) {
       state.user = session && session.user ? session.user : null;
       if (state.user) {
         updateSignedInStatus('正在准备同步……', 'syncing');
-        window.setTimeout(syncCloud, 0);
+        window.setTimeout(function () { syncCloud(); loadCommunity(); }, 0);
       } else {
         updateSignedOutStatus();
       }
@@ -1051,6 +1232,17 @@
     var button = event.target.closest('[data-action]');
     if (!button) return;
     var action = button.getAttribute('data-action');
+    if (action === 'switch-kind' || action === 'switch-space') {
+      if (action === 'switch-kind') state.kind = button.dataset.kind;
+      else state.space = button.dataset.space;
+      state.category = ''; state.model = ''; state.syntax = ''; state.query = ''; search.value = '';
+      render();
+      if (action === 'switch-space' && state.space === 'hall') loadCommunity();
+      return;
+    }
+    if (action === 'theme') return setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
+    if (action === 'announcements') return document.getElementById('prompt-notice-dialog').showModal();
+    if (action === 'close-notice') return document.getElementById('prompt-notice-dialog').close();
     if (action === 'new') return openForm();
     if (action === 'cancel') return closeForm();
     if (action === 'remove-image') {
@@ -1073,7 +1265,7 @@
     if (action === 'import') return importInput.click();
     if (action === 'clear-filters') {
       state.query = '';
-      state.kind = '';
+      state.kind = state.kind || 'text';
       state.category = '';
       state.model = '';
       state.syntax = '';
@@ -1090,7 +1282,8 @@
     if (action === 'preview-duplicate') {
       var previewPromptForDuplicate = findPrompt(state.preview.promptId);
       if (previewPromptForDuplicate) {
-        duplicatePrompt(previewPromptForDuplicate);
+        if (state.space === 'hall') favoritePrompt(previewPromptForDuplicate, button);
+        else duplicatePrompt(previewPromptForDuplicate);
         closePreview();
       }
       return;
@@ -1118,8 +1311,10 @@
     }
     var card = button.closest('[data-prompt-id]');
     if (!card) return;
-    var prompt = state.prompts.find(function (item) { return item.id === card.getAttribute('data-prompt-id'); });
+    var prompt = findPrompt(card.getAttribute('data-prompt-id'));
     if (!prompt) return;
+    if (action === 'favorite') return favoritePrompt(prompt, button);
+    if (action === 'publish' || action === 'unpublish') return publishPrompt(prompt, action === 'unpublish', button);
     if (action === 'copy') return copyPrompt(prompt, button);
     if (action === 'duplicate') return duplicatePrompt(prompt);
     if (action === 'edit') {
@@ -1127,6 +1322,7 @@
       return openForm(prompt);
     }
     if (action === 'delete') {
+      if (state.publishedIds.indexOf(prompt.id) !== -1) return toast('请先撤回共享，再删除个人提示词。');
       if (prompt.isBuiltin || !window.confirm('确定删除“' + prompt.title + '”吗？')) return;
       state.prompts = state.prompts.filter(function (item) { return item.id !== prompt.id; });
       savePrompts();
@@ -1154,7 +1350,8 @@
   categoryNav.addEventListener('click', function (event) {
     var button = event.target.closest('[data-category]');
     if (!button) return;
-    state.category = button.getAttribute('data-category') || '';
+    if (state.kind === 'image') state.model = button.getAttribute('data-category') || '';
+    else state.category = button.getAttribute('data-category') || '';
     render();
   });
 
@@ -1217,6 +1414,7 @@
     var removedImages = previous ? previous.exampleImages.filter(function (oldImage) {
       return !prompt.exampleImages.some(function (image) { return image.path && image.path === oldImage.path; });
     }) : [];
+    state.space = 'personal'; state.kind = prompt.kind; state.category = ''; state.model = ''; state.query = ''; search.value = '';
     savePrompts();
     setFormSaving(false);
     closeForm();

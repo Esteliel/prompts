@@ -12,9 +12,9 @@
   {% if page.script %}<script defer src="{{ page.script | relative_url }}"></script>{% endif %}
 </head>
 <body>
-  <main class="site-content{% if page.home %} site-content--home{% endif %}{% if page.wide %} site-content--wide{% endif %}">
+  <div class="site-content{% if page.home %} site-content--home{% endif %}{% if page.wide %} site-content--wide{% endif %}">
     {{ content }}
-  </main>
+  </div>
   <div id="jsi-flying-fish-container" class="fish-container" aria-hidden="true"></div>
 </body>
 </html>

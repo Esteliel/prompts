@@ -102,3 +102,38 @@ create policy "Users can delete their own prompt example images"
     bucket_id = 'prompt-examples'
     and (storage.foldername(name))[1] = (select auth.uid()::text)
   );
+
+-- 收藏来源用于跨浏览器保留收藏状态；旧记录保持兼容。
+alter table public.prompts add column if not exists source_id text not null default '';
+
+-- 公开内容为用户主动发布的快照，个人 prompts 表的 RLS 不变。
+create table if not exists public.shared_prompts (
+  id text not null,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  payload jsonb not null check (jsonb_typeof(payload) = 'object'),
+  image_paths text[] not null default '{}',
+  updated_at timestamptz not null default now(),
+  primary key (user_id, id),
+  foreign key (user_id, id) references public.prompts(user_id, id) on delete cascade
+);
+create index if not exists shared_prompts_updated_idx on public.shared_prompts (updated_at desc);
+alter table public.shared_prompts enable row level security;
+grant select on public.shared_prompts to anon, authenticated;
+grant insert, update, delete on public.shared_prompts to authenticated;
+drop policy if exists "Anyone can read shared prompts" on public.shared_prompts;
+create policy "Anyone can read shared prompts" on public.shared_prompts for select to anon, authenticated using (true);
+drop policy if exists "Owners can publish prompts" on public.shared_prompts;
+create policy "Owners can publish prompts" on public.shared_prompts for insert to authenticated with check ((select auth.uid()) = user_id);
+drop policy if exists "Owners can update shared prompts" on public.shared_prompts;
+create policy "Owners can update shared prompts" on public.shared_prompts for update to authenticated using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
+drop policy if exists "Owners can retract shared prompts" on public.shared_prompts;
+create policy "Owners can retract shared prompts" on public.shared_prompts for delete to authenticated using ((select auth.uid()) = user_id);
+
+-- 仅显式分享后的图片副本进入此公开桶，原 prompt-examples 桶仍然私有。
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('shared-examples', 'shared-examples', true, 8388608, array['image/jpeg','image/png','image/webp','image/gif','image/avif'])
+on conflict (id) do update set public = excluded.public, file_size_limit = excluded.file_size_limit, allowed_mime_types = excluded.allowed_mime_types;
+drop policy if exists "Owners manage shared image copies" on storage.objects;
+create policy "Owners manage shared image copies" on storage.objects for all to authenticated
+using (bucket_id = 'shared-examples' and (storage.foldername(name))[1] = (select auth.uid()::text))
+with check (bucket_id = 'shared-examples' and (storage.foldername(name))[1] = (select auth.uid()::text));
