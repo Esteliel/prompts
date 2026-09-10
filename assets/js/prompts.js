@@ -3,7 +3,7 @@
 
   var STORAGE_KEY = 'esteliel.prompt-manager.v1';
   var LOCAL_OWNER_KEY = STORAGE_KEY + '.owner';
-  // 网站内置提示词：新增条目会在发布后自动合并到已有用户，勿复用现有 id。
+  // 普通网站内置提示词；绘画提示词从 assets/data/painting-prompts/ 按文件加载。
   var seedPrompts = [
     {
       id: 'writing-polish',
@@ -37,19 +37,6 @@
       description: '模拟linux终端，执行命令并返回结果。',
       content: '我想让你扮演一个linux终端。我将键入命令，您将回复终端应该显示的内容。我希望您只回复一个唯一代码块内的终端输出，而不是其他任何内容。不要写解释。不要键入命令，除非我指示你这样做。当我需要用英语告诉你一些事情时，我会把文本放在{像这样}的大括号里。我的第一个命令是pwd'
     },
-    {
-      id: 'anime-style',
-      title: '二次元画风',
-      category: '绘画',
-      tags: ['画风', '二次元'],
-      description: '适用于动漫风格绘图。',
-      content: 'anime style, detailed illustration, anime_coloring, clean_lineart, soft_shading, delicate_details, pastel_colors, smooth_color_gradients',
-      kind: 'image',
-      promptPart: 'style',
-      model: 'SDXL',
-      syntax: 'danbooru'
-    },
-
     {
       id: 'idea-expander',
       title: '把想法变成计划',
@@ -116,11 +103,12 @@
     other: '其他'
   };
   var DEFAULT_CATEGORIES = ['编程', '办公', '角色卡', '语言', '教育', '设计', '绘画'];
+  var BUILTIN_MANIFEST_PATH = 'assets/data/painting-prompts/index.json';
+  // 保留已发布过的绘画提示词 ID，避免旧浏览器数据在清单加载失败时变成自定义项。
+  var LEGACY_BUILTIN_PROMPT_IDS = ['anime-style'];
   var BUILTIN_PROMPT_IDS = Object.create(null);
-  seedPrompts.forEach(function (prompt) { BUILTIN_PROMPT_IDS[prompt.id] = true; });
-  var BUILTIN_PROMPTS = seedPrompts.map(function (prompt) {
-    return normalizePrompt(Object.assign({}, prompt, { isBuiltin: true }));
-  }).filter(Boolean);
+  var BUILTIN_PROMPTS = [];
+  setBuiltinCatalog(seedPrompts);
 
   var localState = readLocalPrompts();
   var state = {
@@ -138,6 +126,7 @@
     formImages: { existing: [], pending: [] },
     preview: { promptId: '', imageIndex: 0 }
   };
+  var builtinReady = loadBuiltinPrompts();
 
   function readLocalPrompts() {
     try {
@@ -170,6 +159,50 @@
 
   function getUserPrompts(prompts) {
     return (prompts || state.prompts).filter(function (prompt) { return !prompt.isBuiltin; });
+  }
+
+  function setBuiltinCatalog(prompts) {
+    var catalog = Array.isArray(prompts) ? prompts.filter(Boolean) : [];
+    var ids = Object.create(null);
+    LEGACY_BUILTIN_PROMPT_IDS.forEach(function (id) { ids[id] = true; });
+    catalog.forEach(function (prompt) {
+      if (prompt && prompt.id) ids[String(prompt.id)] = true;
+    });
+    BUILTIN_PROMPT_IDS = ids;
+    BUILTIN_PROMPTS = catalog.map(function (prompt) {
+      return normalizePrompt(Object.assign({}, prompt, { isBuiltin: true }));
+    }).filter(Boolean);
+  }
+
+  function loadBuiltinPrompts() {
+    if (typeof window.fetch !== 'function') return Promise.resolve();
+    var manifestUrl = new URL(BUILTIN_MANIFEST_PATH, document.baseURI).toString();
+    return window.fetch(manifestUrl, { credentials: 'same-origin' }).then(function (response) {
+      if (!response.ok) throw new Error('内置绘画提示词清单加载失败：' + response.status);
+      return response.json();
+    }).then(function (manifest) {
+      var files = Array.isArray(manifest) ? manifest : manifest && Array.isArray(manifest.files) ? manifest.files : [];
+      files = files.map(function (file) { return String(file || '').trim(); })
+        .filter(function (file) { return /^[a-z0-9][a-z0-9._-]*\.json$/i.test(file); })
+        .filter(unique);
+      var baseUrl = new URL('assets/data/painting-prompts/', document.baseURI);
+      return Promise.all(files.map(function (file) {
+        return window.fetch(new URL(file, baseUrl).toString(), { credentials: 'same-origin' }).then(function (response) {
+          if (!response.ok) throw new Error(file + '：' + response.status);
+          return response.json();
+        }).catch(function (error) {
+          if (window.console && console.error) console.error('Painting builtin prompt failed:', error);
+          return null;
+        });
+      }));
+    }).then(function (prompts) {
+      setBuiltinCatalog(seedPrompts.concat(prompts.filter(Boolean)));
+      state.prompts = mergeBuiltinPrompts(state.prompts);
+      if (state.localPersisted) savePrompts();
+      render();
+    }).catch(function (error) {
+      if (window.console && console.error) console.error('Painting builtin catalog failed:', error);
+    });
   }
 
   function savePrompts() {
@@ -870,6 +903,7 @@
     state.syncing = true;
     updateSignedInStatus('正在从云端读取提示词……', 'syncing');
     try {
+      await builtinReady;
       if (state.localOwner && state.localOwner !== state.user.id) {
         state.prompts = BUILTIN_PROMPTS.slice();
         state.localPersisted = false;
@@ -930,6 +964,7 @@
     if (!state.client || !state.user) return;
     updateSignedInStatus('正在更新云端列表……', 'syncing');
     try {
+      await builtinReady;
       var remotePrompts = (await getRemoteRows()).map(fromRemoteRow).filter(Boolean);
       var localUserPrompts = getUserPrompts(state.prompts);
       var localIds = localUserPrompts.map(function (prompt) { return prompt.id; });

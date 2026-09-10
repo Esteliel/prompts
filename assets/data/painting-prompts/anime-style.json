@@ -1,0 +1,12 @@
+{
+  "id": "anime-style",
+  "title": "二次元画风",
+  "category": "绘画",
+  "tags": ["画风", "二次元"],
+  "description": "适用于动漫风格绘图。",
+  "content": "anime style, detailed illustration, anime_coloring, clean_lineart, soft_shading, delicate_details, pastel_colors, smooth_color_gradients",
+  "kind": "image",
+  "promptPart": "style",
+  "model": "SDXL",
+  "syntax": "danbooru"
+}

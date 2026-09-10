@@ -6,7 +6,7 @@
 
 ## 维护网站内置提示词
 
-网站内置提示词集中维护在 [`assets/js/prompts.js`](assets/js/prompts.js) 顶部的 `seedPrompts` 数组。新增对象时填写 `id`、`title`、`category`、`tags`、`description` 和 `content`；绘画提示词再补充 `kind: 'image'`、`promptPart`、`model` 与 `syntax`。发布后，新增内置项会自动合并到已有用户的本地列表和云端列表，不会覆盖用户的自定义提示词。
+普通内置提示词集中维护在 [`assets/js/prompts.js`](assets/js/prompts.js) 顶部的 `seedPrompts` 数组；绘画内置提示词按“一条一个文件”维护在 [`assets/data/painting-prompts/`](assets/data/painting-prompts/) 中，并在其中的 `index.json` 登记文件名。新增绘画对象时填写 `id`、`title`、`category`、`tags`、`description`、`content`、`kind: 'image'`、`promptPart`、`model` 与 `syntax`，示例图片请使用公开 `https` URL。发布后，新增内置项会自动合并到已有用户的本地列表和云端列表，不会覆盖用户的自定义提示词。
 
 内置项只能复制为自定义提示词后编辑或删除；它们不会写入用户的 Supabase 数据，也不会参与云端删除同步。
 
