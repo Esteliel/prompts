@@ -73,6 +73,16 @@
   var emptyTitle = document.getElementById('prompt-empty-title');
   var emptyCopy = document.getElementById('prompt-empty-copy');
   var dialog = document.getElementById('prompt-dialog');
+  var previewDialog = document.getElementById('prompt-preview-dialog');
+  var previewTitle = document.getElementById('prompt-preview-title');
+  var previewCategory = document.getElementById('prompt-preview-category');
+  var previewDescription = document.getElementById('prompt-preview-description');
+  var previewContent = document.getElementById('prompt-preview-content');
+  var previewMeta = document.getElementById('prompt-preview-meta');
+  var previewImage = document.getElementById('prompt-preview-image');
+  var previewImagePlaceholder = document.getElementById('prompt-preview-image-placeholder');
+  var previewImageCounter = document.getElementById('prompt-preview-image-counter');
+  var previewThumbs = document.getElementById('prompt-preview-thumbs');
   var form = document.getElementById('prompt-form');
   var importInput = document.getElementById('prompt-import');
   var authStatus = document.getElementById('prompt-auth-status');
@@ -125,7 +135,8 @@
     client: null,
     user: null,
     syncing: false,
-    formImages: { existing: [], pending: [] }
+    formImages: { existing: [], pending: [] },
+    preview: { promptId: '', imageIndex: 0 }
   };
 
   function readLocalPrompts() {
@@ -278,6 +289,8 @@
     renderCategories();
     var visible = getFilteredPrompts();
     summary.textContent = state.prompts.length + ' 条提示词 · 当前显示 ' + visible.length + ' 条';
+    var paintingMode = visible.length > 0 && visible.every(function (prompt) { return prompt.kind === 'image'; });
+    list.classList.toggle('prompt-grid--painting', paintingMode);
     list.innerHTML = visible.map(renderCard).join('');
     var noPrompts = state.prompts.length === 0;
     empty.hidden = visible.length !== 0;
@@ -287,6 +300,7 @@
   }
 
   function renderCard(prompt) {
+    if (prompt.kind === 'image') return renderPaintingCard(prompt);
     var tags = prompt.tags.map(function (tag) {
       return '<span class="prompt-tag">' + escapeHtml(tag) + '</span>';
     }).join('');
@@ -329,6 +343,33 @@
       '</article>';
   }
 
+  function renderPaintingCard(prompt) {
+    var firstImage = prompt.exampleImages[0];
+    var immediateUrl = firstImage && firstImage.url && /^https?:\/\//i.test(firstImage.url) ? firstImage.url : '';
+    var image = firstImage ? '<img class="prompt-card__image"' + (immediateUrl ? ' src="' + escapeHtml(immediateUrl) + '"' : ' hidden') + ' data-image-path="' + escapeHtml(firstImage.path) + '" alt="' + escapeHtml(firstImage.alt) + '">' : '';
+    var placeholder = '<span class="prompt-card__image-placeholder"' + (immediateUrl ? ' hidden' : '') + '>' + (firstImage ? '示例图' : '暂无示例图') + '</span>';
+    var badges = '<span class="prompt-card__badge">绘画提示词</span><span class="prompt-card__badge">' + escapeHtml(PROMPT_PART_LABELS[prompt.promptPart] || prompt.promptPart) + '</span>';
+    if (prompt.model) badges += '<span class="prompt-card__badge">' + escapeHtml(prompt.model) + '</span>';
+    badges += '<span class="prompt-card__badge">' + escapeHtml(SYNTAX_LABELS[prompt.syntax] || prompt.syntax) + '</span>';
+    if (prompt.isBuiltin) badges += '<span class="prompt-card__badge prompt-card__badge--accent">网站内置</span>';
+    var footer = '<button class="button button--quiet" type="button" data-action="copy" aria-label="复制：' + escapeHtml(prompt.title) + '">复制</button>';
+    if (prompt.isBuiltin) {
+      footer += '<button class="button button--quiet" type="button" data-action="duplicate" aria-label="复制为自定义：' + escapeHtml(prompt.title) + '">复制为自定义</button>';
+    } else {
+      footer += '<button class="button button--quiet" type="button" data-action="edit" aria-label="编辑：' + escapeHtml(prompt.title) + '">编辑</button>' +
+        '<button class="button button--quiet" type="button" data-action="delete" aria-label="删除：' + escapeHtml(prompt.title) + '">删除</button>';
+    }
+    return '<article class="prompt-card prompt-card--image prompt-card--gallery" data-prompt-id="' + escapeHtml(prompt.id) + '">' +
+      '<button class="prompt-card__visual" type="button" data-action="preview" aria-label="查看：' + escapeHtml(prompt.title) + '">' +
+        '<figure class="prompt-card__image-figure">' + image + placeholder + '</figure>' +
+        '<span class="prompt-card__visual-shade"></span>' +
+        '<span class="prompt-card__visual-copy"><strong>' + escapeHtml(prompt.title) + '</strong><small>' + escapeHtml(prompt.description || '绘画提示词') + '</small></span>' +
+        '<span class="prompt-card__visual-badges" aria-label="提示词属性">' + badges + '</span>' +
+      '</button>' +
+      '<footer class="prompt-card__footer">' + footer + '</footer>' +
+      '</article>';
+  }
+
   function hydrateImageUrls() {
     if (!state.client || !state.user || !state.client.storage) return;
     var nodes = Array.prototype.slice.call(document.querySelectorAll('.prompt-card__image[data-image-path]'));
@@ -353,6 +394,116 @@
       });
     }).catch(function (error) {
       if (window.console && console.error) console.error('Prompt image URL failed:', error);
+    });
+  }
+
+  function findPrompt(id) {
+    return state.prompts.find(function (prompt) { return prompt.id === id; });
+  }
+
+  function openPreview(prompt) {
+    if (!previewDialog || !prompt) return;
+    state.preview = { promptId: prompt.id, imageIndex: 0 };
+    renderPreview();
+    if (typeof previewDialog.showModal === 'function') previewDialog.showModal();
+    else previewDialog.setAttribute('open', 'open');
+  }
+
+  function closePreview() {
+    if (!previewDialog) return;
+    if (typeof previewDialog.close === 'function' && previewDialog.open) previewDialog.close();
+    else previewDialog.removeAttribute('open');
+  }
+
+  function renderPreview() {
+    var prompt = findPrompt(state.preview.promptId);
+    if (!prompt || !previewDialog) return;
+    var images = prompt.exampleImages || [];
+    var imageIndex = Math.max(0, Math.min(state.preview.imageIndex, images.length - 1));
+    state.preview.imageIndex = images.length ? imageIndex : 0;
+    previewTitle.textContent = prompt.title;
+    previewCategory.textContent = prompt.category;
+    previewDescription.textContent = prompt.description || '绘画提示词';
+    previewContent.textContent = prompt.content;
+    var meta = [PROMPT_PART_LABELS[prompt.promptPart] || prompt.promptPart];
+    if (prompt.model) meta.push(prompt.model);
+    meta.push(SYNTAX_LABELS[prompt.syntax] || prompt.syntax);
+    if (prompt.isBuiltin) meta.push('网站内置');
+    previewMeta.innerHTML = meta.map(function (item) {
+      return '<span class="prompt-preview__meta-item">' + escapeHtml(item) + '</span>';
+    }).join('');
+
+    var previous = document.getElementById('prompt-preview-prev');
+    var next = document.getElementById('prompt-preview-next');
+    var hasImages = images.length > 0;
+    if (previewImageCounter) previewImageCounter.textContent = hasImages ? (state.preview.imageIndex + 1) + ' / ' + images.length : '无示例图';
+    if (previous) previous.hidden = !hasImages || images.length < 2;
+    if (next) next.hidden = !hasImages || images.length < 2;
+    previewThumbs.innerHTML = images.map(function (image, index) {
+      var immediateUrl = image.url && /^https?:\/\//i.test(image.url) ? image.url : '';
+      return '<button class="prompt-preview__thumb' + (index === state.preview.imageIndex ? ' is-active' : '') + '" type="button" data-action="preview-image" data-image-index="' + index + '" aria-label="查看第 ' + (index + 1) + ' 张示例图">' +
+        '<img' + (immediateUrl ? ' src="' + escapeHtml(immediateUrl) + '"' : '') + ' data-preview-image-path="' + escapeHtml(image.path) + '" alt="' + escapeHtml(image.alt) + '">' +
+      '</button>';
+    }).join('');
+    setPreviewImage(prompt, state.preview.imageIndex);
+    hydratePreviewThumbs();
+  }
+
+  function setPreviewImage(prompt, imageIndex) {
+    var images = prompt.exampleImages || [];
+    var image = images[imageIndex];
+    if (!image) {
+      previewImage.hidden = true;
+      previewImage.removeAttribute('src');
+      previewImagePlaceholder.hidden = false;
+      previewImagePlaceholder.textContent = '暂无示例图';
+      return;
+    }
+    var immediateUrl = image.url && /^https?:\/\//i.test(image.url) ? image.url : '';
+    previewImage.alt = image.alt;
+    previewImagePlaceholder.textContent = '示例图加载中……';
+    if (immediateUrl) {
+      previewImage.src = immediateUrl;
+      previewImage.hidden = false;
+      previewImagePlaceholder.hidden = true;
+    } else {
+      previewImage.removeAttribute('src');
+      previewImage.hidden = true;
+      previewImagePlaceholder.hidden = false;
+    }
+    if (!immediateUrl && image.path && state.client && state.user && state.client.storage) {
+      state.client.storage.from('prompt-examples').createSignedUrls([image.path], 3600).then(function (result) {
+        if (result.error) throw result.error;
+        if (state.preview.promptId !== prompt.id || state.preview.imageIndex !== imageIndex) return;
+        var signed = result.data && result.data[0] && result.data[0].signedUrl;
+        if (!signed) return;
+        previewImage.src = signed;
+        previewImage.hidden = false;
+        previewImagePlaceholder.hidden = true;
+      }).catch(function (error) {
+        if (window.console && console.error) console.error('Preview image URL failed:', error);
+        previewImagePlaceholder.textContent = '示例图暂不可用';
+      });
+    }
+  }
+
+  function hydratePreviewThumbs() {
+    if (!state.client || !state.user || !state.client.storage || !previewThumbs) return;
+    var nodes = Array.prototype.slice.call(previewThumbs.querySelectorAll('[data-preview-image-path]'));
+    var paths = nodes.map(function (node) { return node.getAttribute('data-preview-image-path'); }).filter(Boolean).filter(unique);
+    if (!paths.length) return;
+    state.client.storage.from('prompt-examples').createSignedUrls(paths, 3600).then(function (result) {
+      if (result.error) throw result.error;
+      var urlByPath = Object.create(null);
+      (result.data || []).forEach(function (item) {
+        if (item && item.path && item.signedUrl) urlByPath[item.path] = item.signedUrl;
+      });
+      nodes.forEach(function (node) {
+        var url = urlByPath[node.getAttribute('data-preview-image-path')];
+        if (url) node.src = url;
+      });
+    }).catch(function (error) {
+      if (window.console && console.error) console.error('Preview thumbnails failed:', error);
     });
   }
 
@@ -486,6 +637,7 @@
   }
 
   function copyPrompt(prompt, button) {
+    var originalLabel = button.textContent;
     var write = Promise.resolve().then(function () {
       if (!window.navigator.clipboard || !window.isSecureContext) throw new Error('clipboard unavailable');
       return window.navigator.clipboard.writeText(prompt.content);
@@ -509,12 +661,12 @@
       button.textContent = '已复制';
       button.classList.add('is-copied');
       window.setTimeout(function () {
-        button.textContent = '复制';
+        button.textContent = originalLabel;
         button.classList.remove('is-copied');
       }, 1600);
     }).catch(function () {
       button.textContent = '复制失败';
-      window.setTimeout(function () { button.textContent = '复制'; }, 1600);
+      window.setTimeout(function () { button.textContent = originalLabel; }, 1600);
     });
   }
 
@@ -530,7 +682,10 @@
       promptPart: prompt.promptPart,
       model: prompt.model,
       syntax: prompt.syntax,
-      exampleImages: prompt.exampleImages,
+      // 内置项不应把站点/存储路径带进用户副本，只保留可复用的公开图片地址。
+      exampleImages: prompt.exampleImages.map(function (image) {
+        return { path: '', name: image.name, alt: image.alt, url: image.url || '' };
+      }),
       updatedAt: new Date().toISOString(),
       isBuiltin: false
     });
@@ -860,6 +1015,41 @@
       render();
       return;
     }
+    if (action === 'close-preview') return closePreview();
+    if (action === 'preview-copy') {
+      var previewPromptForCopy = findPrompt(state.preview.promptId);
+      if (previewPromptForCopy) copyPrompt(previewPromptForCopy, button);
+      return;
+    }
+    if (action === 'preview-duplicate') {
+      var previewPromptForDuplicate = findPrompt(state.preview.promptId);
+      if (previewPromptForDuplicate) {
+        duplicatePrompt(previewPromptForDuplicate);
+        closePreview();
+      }
+      return;
+    }
+    if (action === 'preview-image' || action === 'preview-prev' || action === 'preview-next') {
+      var previewPrompt = findPrompt(state.preview.promptId);
+      if (!previewPrompt) return;
+      var imageCount = previewPrompt.exampleImages.length;
+      if (!imageCount) return;
+      if (action === 'preview-image') {
+        state.preview.imageIndex = Number(button.getAttribute('data-image-index')) || 0;
+      } else if (action === 'preview-prev') {
+        state.preview.imageIndex = (state.preview.imageIndex - 1 + imageCount) % imageCount;
+      } else {
+        state.preview.imageIndex = (state.preview.imageIndex + 1) % imageCount;
+      }
+      renderPreview();
+      return;
+    }
+    if (action === 'preview') {
+      var previewCard = button.closest('[data-prompt-id]');
+      var previewCardPrompt = previewCard && findPrompt(previewCard.getAttribute('data-prompt-id'));
+      if (previewCardPrompt) openPreview(previewCardPrompt);
+      return;
+    }
     var card = button.closest('[data-prompt-id]');
     if (!card) return;
     var prompt = state.prompts.find(function (item) { return item.id === card.getAttribute('data-prompt-id'); });
@@ -878,6 +1068,12 @@
       syncDeleteToCloud(prompt.id, prompt.exampleImages);
     }
   });
+
+  if (previewDialog) {
+    previewDialog.addEventListener('click', function (event) {
+      if (event.target === previewDialog) closePreview();
+    });
+  }
 
   search.addEventListener('input', function (event) {
     state.query = event.target.value.trim();

@@ -170,6 +170,36 @@ wide: true
   </form>
 </dialog>
 
+<dialog id="prompt-preview-dialog" class="prompt-preview-dialog" aria-labelledby="prompt-preview-title">
+  <button class="prompt-preview__close dialog-close" type="button" data-action="close-preview" aria-label="关闭预览">×</button>
+  <div class="prompt-preview__grid">
+    <section class="prompt-preview__copy">
+      <p class="eyebrow">PROMPT NOTE</p>
+      <div class="prompt-preview__heading">
+        <h2 id="prompt-preview-title"></h2>
+        <span id="prompt-preview-category" class="prompt-preview__category"></span>
+      </div>
+      <p id="prompt-preview-description" class="prompt-preview__description"></p>
+      <div id="prompt-preview-meta" class="prompt-preview__meta" aria-label="提示词属性"></div>
+      <pre id="prompt-preview-content" class="prompt-preview__content"></pre>
+      <div class="prompt-preview__actions">
+        <button class="button button--primary" type="button" data-action="preview-copy">复制提示词</button>
+        <button class="button button--quiet" type="button" data-action="preview-duplicate">复制为自定义</button>
+      </div>
+    </section>
+    <section class="prompt-preview__media" aria-label="示例图片">
+      <button id="prompt-preview-prev" class="prompt-preview__arrow prompt-preview__arrow--prev" type="button" data-action="preview-prev" aria-label="上一张">‹</button>
+      <figure class="prompt-preview__figure">
+        <img id="prompt-preview-image" alt="" hidden>
+        <span id="prompt-preview-image-placeholder" class="prompt-preview__placeholder">暂无示例图</span>
+        <figcaption id="prompt-preview-image-counter" class="prompt-preview__counter">无示例图</figcaption>
+      </figure>
+      <button id="prompt-preview-next" class="prompt-preview__arrow prompt-preview__arrow--next" type="button" data-action="preview-next" aria-label="下一张">›</button>
+      <div id="prompt-preview-thumbs" class="prompt-preview__thumbs"></div>
+    </section>
+  </div>
+</dialog>
+
 <dialog id="prompt-auth-dialog" class="prompt-dialog prompt-auth-dialog" aria-labelledby="prompt-auth-title">
   <form id="prompt-auth-form" class="prompt-form">
     <div class="prompt-dialog__header">
