@@ -248,17 +248,44 @@
   }
 
   function normalizeImage(image) {
-    if (!image || typeof image !== 'object') return null;
-    var path = String(image.path || '').trim().slice(0, 300);
-    var url = String(image.url || '').trim();
-    if (!path && !/^https?:\/\//i.test(url)) return null;
-    if (!/^https?:\/\//i.test(url)) url = '';
+    // 内置提示词可以用简写：exampleImages: ["images/example.png"]。
+    var source = typeof image === 'string' ? { url: image } : image;
+    if (!source || typeof source !== 'object') return null;
+    var path = String(source.path || '').trim().slice(0, 300);
+    var url = String(source.url || '').trim().slice(0, 500);
+    if (!path && !isImageUrl(url)) return null;
     return {
       path: path,
-      name: String(image.name || image.alt || '示例图片').trim().slice(0, 120) || '示例图片',
-      alt: String(image.alt || image.name || '提示词示例图片').trim().slice(0, 160) || '提示词示例图片',
+      name: String(source.name || source.alt || getImageName(url) || '示例图片').trim().slice(0, 120) || '示例图片',
+      alt: String(source.alt || source.name || '提示词示例图片').trim().slice(0, 160) || '提示词示例图片',
       url: url
     };
+  }
+
+  function isImageUrl(url) {
+    var value = String(url || '').trim();
+    if (!value || /^[a-z][a-z0-9+.-]*:/i.test(value) && !/^https?:\/\//i.test(value)) return false;
+    return /^https?:\/\//i.test(value) || !/^\/\//.test(value);
+  }
+
+  function resolveImageUrl(url) {
+    var value = String(url || '').trim();
+    if (!isImageUrl(value)) return '';
+    try {
+      return new URL(value, document.baseURI).toString();
+    } catch (error) {
+      return '';
+    }
+  }
+
+  function getImmediateImageUrl(image) {
+    return image ? resolveImageUrl(image.url) : '';
+  }
+
+  function getImageName(url) {
+    var value = String(url || '').split(/[?#]/)[0];
+    var parts = value.split('/');
+    return parts[parts.length - 1] || '';
   }
 
   function unique(value, index, values) {
@@ -347,10 +374,11 @@
       badges += '<span class="prompt-card__badge">' + escapeHtml(SYNTAX_LABELS[prompt.syntax] || prompt.syntax) + '</span>';
     }
     var images = prompt.exampleImages.map(function (image) {
-      var immediateUrl = image.url && /^https?:\/\//i.test(image.url) ? image.url : '';
-      return '<a class="prompt-card__image-link" href="' + (immediateUrl ? escapeHtml(immediateUrl) : '#') + '" target="_blank" rel="noreferrer" data-image-path="' + escapeHtml(image.path) + '">' +
+      var immediateUrl = getImmediateImageUrl(image);
+      var imagePathAttribute = image.path && !immediateUrl ? ' data-image-path="' + escapeHtml(image.path) + '"' : '';
+      return '<a class="prompt-card__image-link" href="' + (immediateUrl ? escapeHtml(immediateUrl) : '#') + '" target="_blank" rel="noreferrer"' + imagePathAttribute + '>' +
         '<figure class="prompt-card__image-figure">' +
-          '<img class="prompt-card__image"' + (immediateUrl ? ' src="' + escapeHtml(immediateUrl) + '"' : ' hidden') + ' data-image-path="' + escapeHtml(image.path) + '" alt="' + escapeHtml(image.alt) + '">' +
+          '<img class="prompt-card__image"' + (immediateUrl ? ' src="' + escapeHtml(immediateUrl) + '"' : ' hidden') + imagePathAttribute + ' alt="' + escapeHtml(image.alt) + '">' +
           '<span class="prompt-card__image-placeholder"' + (immediateUrl ? ' hidden' : '') + '>示例图</span>' +
         '</figure>' +
       '</a>';
@@ -378,8 +406,9 @@
 
   function renderPaintingCard(prompt) {
     var firstImage = prompt.exampleImages[0];
-    var immediateUrl = firstImage && firstImage.url && /^https?:\/\//i.test(firstImage.url) ? firstImage.url : '';
-    var image = firstImage ? '<img class="prompt-card__image"' + (immediateUrl ? ' src="' + escapeHtml(immediateUrl) + '"' : ' hidden') + ' data-image-path="' + escapeHtml(firstImage.path) + '" alt="' + escapeHtml(firstImage.alt) + '">' : '';
+    var immediateUrl = getImmediateImageUrl(firstImage);
+    var imagePathAttribute = firstImage && firstImage.path && !immediateUrl ? ' data-image-path="' + escapeHtml(firstImage.path) + '"' : '';
+    var image = firstImage ? '<img class="prompt-card__image"' + (immediateUrl ? ' src="' + escapeHtml(immediateUrl) + '"' : ' hidden') + imagePathAttribute + ' alt="' + escapeHtml(firstImage.alt) + '">' : '';
     var placeholder = '<span class="prompt-card__image-placeholder"' + (immediateUrl ? ' hidden' : '') + '>' + (firstImage ? '示例图' : '暂无示例图') + '</span>';
     var badges = '<span class="prompt-card__badge">绘画提示词</span><span class="prompt-card__badge">' + escapeHtml(PROMPT_PART_LABELS[prompt.promptPart] || prompt.promptPart) + '</span>';
     if (prompt.model) badges += '<span class="prompt-card__badge">' + escapeHtml(prompt.model) + '</span>';
@@ -473,9 +502,10 @@
     if (previous) previous.hidden = !hasImages || images.length < 2;
     if (next) next.hidden = !hasImages || images.length < 2;
     previewThumbs.innerHTML = images.map(function (image, index) {
-      var immediateUrl = image.url && /^https?:\/\//i.test(image.url) ? image.url : '';
+      var immediateUrl = getImmediateImageUrl(image);
+      var imagePathAttribute = image.path && !immediateUrl ? ' data-preview-image-path="' + escapeHtml(image.path) + '"' : '';
       return '<button class="prompt-preview__thumb' + (index === state.preview.imageIndex ? ' is-active' : '') + '" type="button" data-action="preview-image" data-image-index="' + index + '" aria-label="查看第 ' + (index + 1) + ' 张示例图">' +
-        '<img' + (immediateUrl ? ' src="' + escapeHtml(immediateUrl) + '"' : '') + ' data-preview-image-path="' + escapeHtml(image.path) + '" alt="' + escapeHtml(image.alt) + '">' +
+        '<img' + (immediateUrl ? ' src="' + escapeHtml(immediateUrl) + '"' : '') + imagePathAttribute + ' alt="' + escapeHtml(image.alt) + '">' +
       '</button>';
     }).join('');
     setPreviewImage(prompt, state.preview.imageIndex);
@@ -492,7 +522,7 @@
       previewImagePlaceholder.textContent = '暂无示例图';
       return;
     }
-    var immediateUrl = image.url && /^https?:\/\//i.test(image.url) ? image.url : '';
+    var immediateUrl = getImmediateImageUrl(image);
     previewImage.alt = image.alt;
     previewImagePlaceholder.textContent = '示例图加载中……';
     if (immediateUrl) {
@@ -590,7 +620,7 @@
   function renderFormImages() {
     if (!imagePreview) return;
     var existing = state.formImages.existing.map(function (image, index) {
-      var src = image.url && /^https?:\/\//i.test(image.url) ? image.url : '';
+      var src = getImmediateImageUrl(image);
       return '<div class="prompt-image-preview__item">' +
         (src ? '<img src="' + escapeHtml(src) + '" alt="' + escapeHtml(image.alt) + '">' : '') +
         '<span class="prompt-image-preview__name" title="' + escapeHtml(image.name) + '">' + escapeHtml(image.name) + '</span>' +
