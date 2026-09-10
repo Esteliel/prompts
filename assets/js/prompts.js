@@ -481,6 +481,7 @@
         previewImage.hidden = false;
         previewImagePlaceholder.hidden = true;
       }).catch(function (error) {
+        if (state.preview.promptId !== prompt.id || state.preview.imageIndex !== imageIndex) return;
         if (window.console && console.error) console.error('Preview image URL failed:', error);
         previewImagePlaceholder.textContent = '示例图暂不可用';
       });
