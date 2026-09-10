@@ -557,3 +557,25 @@
 
 :root { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif; }
 .prompt-banner__tools .button { gap: 6px; }
+
+/* Persistent navigation and compact, consistent header controls. */
+.prompt-banner { position: sticky; top: 0; z-index: 30; }
+.prompt-sidebar { top: calc(var(--banner-height, 76px) + 24px); }
+html { scroll-padding-top: calc(var(--banner-height, 76px) + 16px); }
+.prompt-banner__tools .prompt-icon-button { width: 40px; height: 40px; min-height: 40px; padding: 9px; border: 0; color: var(--ink); background: transparent; }
+.prompt-banner__tools svg { display: block; flex: 0 0 auto; width: 22px; height: 22px; }
+.prompt-banner__tools .prompt-icon-button:hover, .prompt-banner__tools .prompt-icon-button[aria-expanded="true"] { background: var(--soft); color: var(--accent); }
+.prompt-header-menu { position: relative; }
+.prompt-header-panel { position: absolute; top: calc(100% + 12px); right: 0; z-index: 1; display: grid; gap: 10px; width: 240px; max-width: calc(100vw - 32px); padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); box-shadow: 0 12px 36px #0002; text-align: left; }
+#prompt-language-panel { width: 168px; }
+#prompt-language-panel label { color: var(--muted); font-size: 12px; }
+#prompt-language-panel select { width: 100%; max-width: none; padding: 9px; border: 1px solid var(--line); border-radius: 6px; }
+.prompt-banner__tools .prompt-avatar { display: grid; place-items: center; width: 34px; height: 34px; min-height: 34px; padding: 0; margin: 3px 5px; border: 0; border-radius: 50%; background: #b94cd5; color: white; font-size: 15px; font-weight: 600; }
+.prompt-banner__tools .prompt-avatar:hover { background: #a13bbc; color: white; box-shadow: 0 0 0 3px var(--accent-soft); }
+#prompt-user-name, #prompt-user-email { overflow-wrap: anywhere; }
+#prompt-user-name { font-size: 14px; }
+#prompt-user-email { font-size: 12px; color: var(--muted); }
+.prompt-header-panel .prompt-sign-out { justify-content: flex-start; width: 100%; margin-top: 4px; padding: 12px 0 0; border: 0; border-top: 1px solid var(--line); border-radius: 0; color: var(--ink); background: transparent; }
+.prompt-header-panel .prompt-sign-out:hover { color: var(--accent); }
+.prompt-header-panel .prompt-sign-out svg { width: 18px; height: 18px; }
+@media (max-width: 860px) { .prompt-sidebar { top: auto; } }

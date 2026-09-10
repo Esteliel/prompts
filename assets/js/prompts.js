@@ -811,12 +811,24 @@
     setAuthStatus('已登录：' + email, detail || '提示词会在登录的浏览器之间同步。', status || 'online');
     signInButton.hidden = true;
     signOutButton.hidden = false;
+    var metadata = state.user.user_metadata || {};
+    var name = String(metadata.display_name || metadata.full_name || metadata.name || email.split('@')[0]);
+    document.getElementById('prompt-user-menu').hidden = false;
+    document.getElementById('prompt-avatar-initial').textContent = Array.from(name.trim())[0] || 'U';
+    document.getElementById('prompt-user-name').textContent = name;
+    document.getElementById('prompt-user-email').textContent = state.user.email || '';
+    document.querySelector('[data-action="account-menu"]').title = name;
   }
 
   function updateSignedOutStatus() {
     setAuthStatus('未登录 · 仅当前浏览器', '登录后可在不同浏览器之间同步提示词。', 'offline');
     signInButton.hidden = false;
     signOutButton.hidden = true;
+    document.getElementById('prompt-user-menu').hidden = true;
+    closeHeaderMenus(false);
+    document.getElementById('prompt-user-name').textContent = '';
+    document.getElementById('prompt-user-email').textContent = '';
+    document.getElementById('prompt-avatar-initial').textContent = '';
   }
 
   function openAuthDialog() {
@@ -1127,7 +1139,7 @@
   function setTheme(theme) {
     document.documentElement.dataset.theme = theme;
     var button = document.querySelector('[data-action="theme"]');
-    button.textContent = theme === 'dark' ? '☼' : '☾';
+    button.dataset.theme = theme;
     button.setAttribute('aria-pressed', String(theme === 'dark'));
     try { localStorage.setItem(STORAGE_KEY + '.theme', theme); } catch (error) { /* Storage is optional. */ }
   }
@@ -1147,6 +1159,7 @@
     '云端连接不可用，请稍后重试。': 'Cloud connection unavailable. Please try again later.',
     '共享服务尚未就绪，请稍后重试。': 'Community service is unavailable. Please try again later.',
     '共享大厅暂时无法连接，仍可浏览站点精选和使用个人库。': 'Community is unavailable. You can still browse featured prompts and use your library.',
+    '语言': 'Language', '账户菜单': 'Account menu', '切换明暗主题': 'Toggle color theme',
     '提示词': 'Prompts', '绘画提示词': 'Image prompts', '系统公告': 'Announcements', '登录': 'Sign in', '退出登录': 'Sign out',
     '共享大厅': 'Community', '个人提示词': 'My library', '场景分类': 'Categories', '模型 / 平台': 'Models / platforms',
     '全部场景': 'All categories', '全部模型': 'All models', '全部格式': 'All formats', '提示词格式': 'Format',
@@ -1168,10 +1181,16 @@
   var translatedNodes = new WeakMap();
   function translateUI() {
     document.documentElement.lang = language;
+    document.querySelectorAll('.prompt-banner__tools [aria-label]').forEach(function (element) {
+      var label = element.dataset.originalLabel || element.getAttribute('aria-label');
+      element.dataset.originalLabel = label;
+      element.setAttribute('aria-label', language === 'en' && translations[label] ? translations[label] : label);
+      if (element.hasAttribute('title') && element.dataset.action !== 'account-menu') element.title = element.getAttribute('aria-label');
+    });
     var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     var node;
     while ((node = walker.nextNode())) {
-      if (node.parentElement.closest('script, style, .prompt-card h2, .prompt-card__description, .prompt-card__content, .prompt-card__tags, .prompt-card__visual-copy, #prompt-preview-title, #prompt-preview-content, #prompt-preview-description, textarea')) continue;
+      if (node.parentElement.closest('script, style, #prompt-user-name, #prompt-user-email, #prompt-avatar-initial, .prompt-card h2, .prompt-card__description, .prompt-card__content, .prompt-card__tags, .prompt-card__visual-copy, #prompt-preview-title, #prompt-preview-content, #prompt-preview-description, textarea')) continue;
       var original = translatedNodes.get(node);
       if (original && node.textContent.trim() === translations[original]) node.textContent = original;
       var text = node.textContent.trim();
@@ -1182,6 +1201,7 @@
   }
   document.getElementById('prompt-language').addEventListener('change', function (event) {
     language = event.target.value;
+    closeHeaderMenus(true);
     try { localStorage.setItem(STORAGE_KEY + '.language', language); } catch (error) { /* Optional. */ }
     render();
   });
@@ -1226,12 +1246,49 @@
     });
   }
 
+  function closeHeaderMenus(restoreFocus) {
+    document.querySelectorAll('.prompt-header-menu [aria-expanded="true"]').forEach(function (button) {
+      button.setAttribute('aria-expanded', 'false');
+      document.getElementById(button.getAttribute('aria-controls')).hidden = true;
+      if (restoreFocus && !button.closest('[hidden]')) button.focus();
+    });
+  }
+
+  function toggleHeaderMenu(button) {
+    var wasOpen = button.getAttribute('aria-expanded') === 'true';
+    closeHeaderMenus(false);
+    if (wasOpen) return;
+    var panel = document.getElementById(button.getAttribute('aria-controls'));
+    panel.hidden = false;
+    button.setAttribute('aria-expanded', 'true');
+    panel.querySelector('select, button').focus();
+  }
+
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape' && document.querySelector('.prompt-header-menu [aria-expanded="true"]')) {
+      closeHeaderMenus(true);
+      event.preventDefault();
+    }
+  });
+  document.addEventListener('focusin', function (event) {
+    if (!event.target.closest('.prompt-header-menu')) closeHeaderMenus(false);
+  });
+  var banner = document.querySelector('.prompt-banner');
+  function measureBanner() {
+    document.documentElement.style.setProperty('--banner-height', banner.offsetHeight + 'px');
+  }
+  measureBanner();
+  if (window.ResizeObserver) new ResizeObserver(measureBanner).observe(banner);
+  else window.addEventListener('resize', measureBanner);
+
   document.addEventListener('click', function (event) {
+    if (!event.target.closest('.prompt-header-menu')) closeHeaderMenus(false);
     var imageLink = event.target.closest('.prompt-card__image-link');
     if (imageLink && imageLink.getAttribute('href') === '#') event.preventDefault();
     var button = event.target.closest('[data-action]');
     if (!button) return;
     var action = button.getAttribute('data-action');
+    if (action === 'account-menu' || action === 'language-menu') return toggleHeaderMenu(button);
     if (action === 'switch-kind' || action === 'switch-space') {
       if (action === 'switch-kind') state.kind = button.dataset.kind;
       else state.space = button.dataset.space;
@@ -1258,7 +1315,15 @@
     if (action === 'sign-in') return openAuthDialog();
     if (action === 'cancel-auth') return closeAuthDialog();
     if (action === 'sign-out') {
-      if (state.client) state.client.auth.signOut();
+      if (!state.client) return;
+      button.disabled = true;
+      state.client.auth.signOut().then(function (result) {
+        if (result.error) throw result.error;
+        state.user = null;
+        updateSignedOutStatus();
+        signInButton.focus();
+      }).catch(function () { toast(language === 'en' ? 'Sign out failed. Please try again.' : '退出登录失败，请重试。'); })
+        .finally(function () { button.disabled = false; });
       return;
     }
     if (action === 'export') return exportPrompts();
