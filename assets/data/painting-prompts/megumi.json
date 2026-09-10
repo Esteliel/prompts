@@ -1,0 +1,16 @@
+{
+  "id": "megumi-style",
+  "title": "惠惠",
+  "category": "绘画",
+  "tags": ["画风", "二次元"],
+  "description": "适用于动漫风格绘图。",
+  "content": "角色是[**megumin**](https://danbooru.donmai.us/wiki_pages/megumin) ，日系二次元角色立绘， 现代精致萌系插画， clean anime character illustration, 纤细流畅的彩色线稿， 灰蓝色与浅紫色描边， 无纯黑粗轮廓， 高明度冷色粉彩配色， 冰蓝、浅青、灰蓝、白色主色， 少量高饱和粉紫点缀，  soft cel shading， 轻赛璐璐上色， 赛璐璐色块结合柔和渐变， 柔化的阴影边缘， 蓝紫色环境阴影， 高调柔光， 清透柔亮的高光，  成组发束， 大面积头发色块， 柔和宽幅头发高光， 少量松散手绘笔触，  精致通透的大眼睛， 青蓝色虹膜渐变， 细腻眼部高光， 淡粉色腮红， 细短脸颊排线，  服装细节清晰但不过度繁复， 浅色低对比装饰纹样， 轻盈布料质感，  纯白背景， 大量留白， 全身角色立绘， 简洁商业插画构图， 脚下淡蓝紫粉色笔刷投影  ",
+  "kind": "image",
+  "promptPart": "style",
+  "model": "gpt-image-2",
+  "syntax": "自然语言",
+  "exampleImages": [
+    "images/megumi.png"
+  ]
+}
+
