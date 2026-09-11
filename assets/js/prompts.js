@@ -1137,6 +1137,7 @@
   }
 
   function setTheme(theme) {
+    theme = theme === 'dark' ? 'dark' : 'light';
     document.documentElement.dataset.theme = theme;
     var button = document.querySelector('[data-action="theme"]');
     button.dataset.theme = theme;
@@ -1199,17 +1200,23 @@
     if (language === 'en') summary.textContent = getFilteredPrompts().length + ' prompts found';
     search.placeholder = language === 'en' ? 'Search titles, content or tags' : '搜索标题、内容或标签';
   }
-  document.getElementById('prompt-language').addEventListener('change', function (event) {
-    language = event.target.value;
+  function updateLanguageOptions() {
+    document.querySelectorAll('[data-action="language-option"]').forEach(function (option) {
+      option.setAttribute('aria-checked', String(option.dataset.language === language));
+    });
+  }
+  function setLanguage(nextLanguage) {
+    language = nextLanguage === 'en' ? 'en' : 'zh-CN';
+    updateLanguageOptions();
     closeHeaderMenus(true);
     try { localStorage.setItem(STORAGE_KEY + '.language', language); } catch (error) { /* Optional. */ }
     render();
-  });
+  }
   try {
     language = localStorage.getItem(STORAGE_KEY + '.language') === 'en' ? 'en' : 'zh-CN';
     setTheme(localStorage.getItem(STORAGE_KEY + '.theme') || 'light');
   } catch (error) { setTheme('light'); }
-  document.getElementById('prompt-language').value = language;
+  updateLanguageOptions();
 
   function initSupabase() {
     var config = window.ESTELIEL_SUPABASE;
@@ -1289,6 +1296,7 @@
     if (!button) return;
     var action = button.getAttribute('data-action');
     if (action === 'account-menu' || action === 'language-menu') return toggleHeaderMenu(button);
+    if (action === 'language-option') return setLanguage(button.dataset.language);
     if (action === 'switch-kind' || action === 'switch-space') {
       if (action === 'switch-kind') state.kind = button.dataset.kind;
       else state.space = button.dataset.space;
