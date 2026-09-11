@@ -7,6 +7,12 @@
   <link rel="stylesheet" href="{{ '/assets/css/site.css' | relative_url }}">
   <link rel="stylesheet" href="{{ '/assets/css/fish.css' | relative_url }}">
   {% if page.stylesheet %}<link rel="stylesheet" href="{{ page.stylesheet | relative_url }}">{% endif %}
+  <link rel="stylesheet" href="{{ '/assets/css/brand.css' | relative_url }}">
+  <script>
+    try {
+      document.documentElement.dataset.theme = localStorage.getItem('esteliel.prompt-manager.v1.theme') === 'light' ? 'light' : 'dark';
+    } catch (error) { document.documentElement.dataset.theme = 'dark'; }
+  </script>
   {% if page.supabase %}<script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script defer src="{{ '/assets/js/prompts-config.js' | relative_url }}"></script>{% endif %}
   <script defer src="{{ '/assets/js/fish.js' | relative_url }}"></script>
   {% if page.script %}<script defer src="{{ page.script | relative_url }}"></script>{% endif %}

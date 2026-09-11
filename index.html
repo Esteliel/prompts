@@ -1,20 +1,23 @@
 ---
 title: 提示词管理 · Esteliel
 description: 跨浏览器同步的个人提示词管理工具。
-stylesheet: /assets/css/prompts.css?v=9
-script: /assets/js/prompts.js?v=13
+stylesheet: /assets/css/prompts.css?v=10
+script: /assets/js/prompts.js?v=14
 supabase: true
 wide: true
 ---
 <div class="prompt-manager">
-  <header class="prompt-banner">
-    <div class="prompt-brand-nav">
-      <a class="prompt-brand" href="{{ '/' | relative_url }}" aria-label="Esteliel 首页"><span class="prompt-logo" aria-hidden="true">✳</span><strong>Esteliel<span>.prompts</span></strong></a>
-      <nav class="prompt-kind-nav" aria-label="提示词类型">
-        <button type="button" data-action="switch-kind" data-kind="text" aria-pressed="true">提示词</button>
-        <button type="button" data-action="switch-kind" data-kind="image" aria-pressed="false">绘画提示词</button>
+  <header class="prompt-banner esteliel-header esteliel-header--section">
+    <div class="esteliel-header__inner">
+      <a class="esteliel-brand" href="{{ site.url }}/" aria-label="Esteliel 首页"><span class="esteliel-brand__mark" aria-hidden="true">e.</span><span>Esteliel</span><span class="esteliel-brand__section">PROMPTS</span></a>
+      <nav class="esteliel-nav" aria-label="主导航">
+        <a href="{{ site.url }}/nav/">导航</a>
+        <a href="{{ site.url }}/blog/" target="_blank" rel="noopener noreferrer" aria-label="博客（在新标签页打开）">博客</a>
+        <a href="{{ site.url }}/tools/">工具</a>
+        <a href="{{ '/' | relative_url }}" aria-current="page">提示词</a>
+        <a href="{{ site.url }}/gallery/">相册</a>
+        <a href="{{ site.url }}/about/">关于</a>
       </nav>
-    </div>
     <div class="prompt-banner__tools">
       <button class="button prompt-icon-button" type="button" data-action="announcements" aria-label="系统公告" title="系统公告"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg></button>
       <div class="prompt-header-menu">
@@ -36,6 +39,13 @@ wide: true
           <button class="button prompt-sign-out" type="button" data-action="sign-out"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4H4v16h5M9 12h12M17 8l4 4-4 4"/></svg><span>退出登录</span></button>
         </div>
       </div>
+    </div>
+    </div>
+    <div class="esteliel-header__secondary">
+      <nav class="esteliel-subnav prompt-kind-nav" aria-label="提示词类型">
+        <button type="button" data-action="switch-kind" data-kind="text" aria-pressed="true">提示词</button>
+        <button type="button" data-action="switch-kind" data-kind="image" aria-pressed="false">绘画提示词</button>
+      </nav>
     </div>
   </header>
 

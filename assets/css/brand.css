@@ -1,0 +1,160 @@
+/* Esteliel shared visual foundation. Keep this file identical in all three repositories. */
+:root {
+  color-scheme: dark;
+  --page: #182532;
+  --surface: #203140;
+  --soft: #263d4f;
+  --ink: #eef3f8;
+  --muted: #a6b3be;
+  --line: #3e5364;
+  --accent: #a4d8ff;
+  --accent-soft: #263d4f;
+  --on-accent: #10212d;
+  --header-surface: rgb(24 37 50 / 96%);
+  --header-line: rgb(123 157 177 / 24%);
+  --header-height: 72px;
+  --header-total-height: 73px;
+  font-family: system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+  line-height: 1.6;
+  color: var(--ink);
+  background: var(--page);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --page: #f6f8fb;
+  --surface: #fff;
+  --soft: #edf2f7;
+  --ink: #223547;
+  --muted: #617486;
+  --line: #d8e2eb;
+  --accent: #246b9e;
+  --accent-soft: #e5f1fa;
+  --on-accent: #fff;
+  --header-surface: rgb(246 248 251 / 96%);
+  --header-line: #d8e2eb;
+}
+
+::selection { color: var(--on-accent); background: var(--accent); }
+
+.esteliel-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  width: 100%;
+  border-bottom: 1px solid var(--header-line);
+  background: var(--header-surface);
+  backdrop-filter: blur(12px);
+}
+
+.esteliel-header__inner,
+.esteliel-subnav {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  width: min(100%, 1440px);
+  margin-inline: auto;
+  padding-inline: 32px;
+}
+
+.esteliel-header__inner { min-height: var(--header-height); gap: 32px; }
+.esteliel-brand {
+  display: inline-flex;
+  flex: 0 0 auto;
+  min-width: 200px;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink);
+  font-size: 18px;
+  font-weight: 650;
+  letter-spacing: -0.5px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.esteliel-brand__mark {
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding-right: 3px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  color: var(--accent);
+  font: italic 25px/1 Georgia, "Times New Roman", serif;
+  letter-spacing: -3px;
+}
+.esteliel-brand__section { color: var(--muted); font-size: 10px; font-weight: 500; letter-spacing: 1.5px; }
+.esteliel-brand__section::before { content: "/"; margin-right: 10px; color: var(--line); }
+.esteliel-nav,
+.esteliel-subnav { gap: 4px; }
+.esteliel-nav {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+.esteliel-nav a,
+.esteliel-subnav a,
+.esteliel-subnav button {
+  box-sizing: border-box;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--muted);
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.5;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  transition: color 160ms ease, background 160ms ease;
+}
+.esteliel-nav a:hover,
+.esteliel-subnav a:hover,
+.esteliel-subnav button:hover { color: var(--ink); background: var(--soft); }
+.esteliel-nav a[aria-current="page"],
+.esteliel-subnav a[aria-current="page"],
+.esteliel-subnav button[aria-pressed="true"] { color: var(--accent); background: var(--accent-soft); font-weight: 650; }
+.esteliel-header :is(a, button):focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.esteliel-subnav { min-height: 48px; padding-block: 4px; overflow-x: auto; }
+.esteliel-subnav :is(a, button) { min-height: 36px; padding-block: 6px; font-size: 13px; }
+.esteliel-header__secondary { border-top: 1px solid var(--header-line); }
+:root:has(.esteliel-header--section) { --header-total-height: 122px; }
+
+/* The prompt app measures this entire header for its sticky sidebar. */
+.esteliel-header.prompt-banner { display: block; min-height: 0; padding: 0; border-radius: 0; }
+.esteliel-header .prompt-banner__tools { flex: 0 0 auto; width: auto; margin-left: auto; gap: 4px; }
+.esteliel-header .prompt-banner__tools .prompt-icon-button { color: var(--muted); border-radius: 8px; }
+
+@media (max-width: 1000px) {
+  :root { --header-height: 64px; --header-total-height: 114px; }
+  :root:has(.esteliel-header--section) { --header-total-height: 163px; }
+  .esteliel-header__inner { flex-wrap: wrap; gap: 0 16px; padding-inline: 20px; }
+  .esteliel-brand { min-width: 0; min-height: var(--header-height); }
+  .esteliel-nav { order: 3; flex: 0 0 100%; min-height: 48px; padding-block: 4px; border-top: 1px solid var(--header-line); }
+  .esteliel-subnav { padding-inline: 20px; }
+}
+
+@media (max-width: 560px) {
+  .esteliel-header__inner, .esteliel-subnav { padding-inline: 16px; }
+  .esteliel-brand { gap: 8px; font-size: 17px; }
+  .esteliel-brand__section { display: none; }
+  .esteliel-nav a { padding-inline: 12px; font-size: 13px; }
+  .esteliel-header .prompt-banner__tools { gap: 0; }
+  .esteliel-header .prompt-banner__tools .prompt-icon-button { width: 36px; min-height: 40px; padding: 8px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .esteliel-header * { transition: none; }
+}

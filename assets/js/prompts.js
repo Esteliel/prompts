@@ -1147,6 +1147,9 @@
 
   var language = 'zh-CN';
   var translations = {
+    '导航': 'Explore', '博客': 'Blog', '工具': 'Tools', '相册': 'Gallery', '关于': 'About',
+    '主导航': 'Main navigation', '提示词类型': 'Prompt type', 'Esteliel 首页': 'Esteliel home',
+    '博客（在新标签页打开）': 'Blog (opens in a new tab)',
     '欢迎来到 Esteliel 提示词共享大厅。': 'Welcome to the Esteliel prompt community.',
     '收藏喜欢的提示词到个人库，编辑自己的内容，并通过「公开共享」发布到大厅。公开前请检查内容与图片，确保不含隐私且拥有分享权限。': 'Save prompts to your library, edit your own content and publish it with Share publicly. Review your content and images before publishing: remove private information and ensure you have permission to share.',
     '公开共享保存的是当前版本；修改后可点击「更新共享」。撤回后大厅不再展示，其他人已经收藏的副本仍会保留。': 'Sharing publishes a snapshot. Use Update shared copy after editing. Unsharing removes it from the community; copies already saved by others remain.',
@@ -1182,7 +1185,7 @@
   var translatedNodes = new WeakMap();
   function translateUI() {
     document.documentElement.lang = language;
-    document.querySelectorAll('.prompt-banner__tools [aria-label]').forEach(function (element) {
+    document.querySelectorAll('.prompt-banner [aria-label]').forEach(function (element) {
       var label = element.dataset.originalLabel || element.getAttribute('aria-label');
       element.dataset.originalLabel = label;
       element.setAttribute('aria-label', language === 'en' && translations[label] ? translations[label] : label);
@@ -1214,8 +1217,8 @@
   }
   try {
     language = localStorage.getItem(STORAGE_KEY + '.language') === 'en' ? 'en' : 'zh-CN';
-    setTheme(localStorage.getItem(STORAGE_KEY + '.theme') || 'light');
-  } catch (error) { setTheme('light'); }
+    setTheme(document.documentElement.dataset.theme || 'dark');
+  } catch (error) { setTheme('dark'); }
   updateLanguageOptions();
 
   function initSupabase() {
