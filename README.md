@@ -14,6 +14,8 @@
 
 页面将普通提示词与绘画提示词分开管理。绘画提示词可以记录完整提示词或画风、角色、动作、服装等单项提示词，并标注模型、自然语言 / Danbooru 标签格式和示例图片。
 
+新建绘画提示词时可以粘贴公开的 `https://chatgpt.com/s/p_…` 分享链接。页面会通过 `r.jina.ai` 只读网页解析服务读取分享页，将公开的标题、绘画提示词和生成图片填入表单，用户检查后再保存；私密、已删除或不含公开提示词的链接不会导入。
+
 ## 维护网站内置提示词
 
 普通内置提示词集中维护在 [`assets/js/prompts.js`](assets/js/prompts.js) 顶部的 `seedPrompts` 数组；绘画内置提示词按“一条一个文件”维护在 [`assets/data/painting-prompts/`](assets/data/painting-prompts/) 中，并在其中的 `index.json` 登记文件名。新增绘画对象时填写 `id`、`title`、`category`、`tags`、`description`、`content`、`kind: 'image'`、`promptPart`、`model` 与 `syntax`，示例图片可直接写站点内路径（例如 `images/megumi.png`），也可以使用公开 `https` URL。发布后，新增内置项会自动合并到已有用户的本地列表和云端列表，不会覆盖用户的自定义提示词。

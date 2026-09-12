@@ -15,6 +15,7 @@
   </script>
   {% if page.supabase %}<script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script defer src="{{ '/assets/js/prompts-config.js' | relative_url }}"></script>{% endif %}
   <script defer src="{{ '/assets/js/fish.js' | relative_url }}"></script>
+  {% if page.chatgpt_share_parser %}<script defer src="{{ '/assets/js/chatgpt-share.js' | relative_url }}"></script>{% endif %}
   {% if page.script %}<script defer src="{{ page.script | relative_url }}"></script>{% endif %}
 </head>
 <body>

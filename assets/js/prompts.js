@@ -85,6 +85,10 @@
   var formPart = document.getElementById('prompt-part');
   var formModel = document.getElementById('prompt-model');
   var formSyntax = document.getElementById('prompt-syntax');
+  var chatGPTUrl = document.getElementById('prompt-chatgpt-url');
+  var chatGPTImportButton = document.getElementById('prompt-chatgpt-import');
+  var chatGPTStatus = document.getElementById('prompt-chatgpt-status');
+  var chatGPTImportRequest = 0;
   var imageInput = document.getElementById('prompt-images');
   var imagePreview = document.getElementById('prompt-image-preview');
   var imageFields = document.querySelectorAll('.prompt-image-field');
@@ -261,7 +265,7 @@
     var source = typeof image === 'string' ? { url: image } : image;
     if (!source || typeof source !== 'object') return null;
     var path = String(source.path || '').trim().slice(0, 300);
-    var url = String(source.url || '').trim().slice(0, 500);
+    var url = String(source.url || '').trim().slice(0, 2048);
     if (!path && !isImageUrl(url)) return null;
     return {
       path: path,
@@ -581,6 +585,8 @@
       pending: []
     };
     imageInput.value = '';
+    if (chatGPTUrl) chatGPTUrl.value = '';
+    setChatGPTStatus('', false);
     toggleImageFields();
     renderFormImages();
     document.getElementById('prompt-dialog-title').textContent = prompt ? '编辑提示词' : '新建提示词';
@@ -592,6 +598,8 @@
   }
 
   function closeForm() {
+    chatGPTImportRequest += 1;
+    if (chatGPTImportButton) chatGPTImportButton.disabled = false;
     if (typeof dialog.close === 'function' && dialog.open) dialog.close();
     else dialog.removeAttribute('open');
   }
@@ -600,6 +608,57 @@
     var error = document.getElementById('prompt-form-error');
     error.textContent = message;
     error.hidden = !message;
+  }
+
+  function setChatGPTStatus(message, isError) {
+    if (!chatGPTStatus) return;
+    chatGPTStatus.textContent = message;
+    chatGPTStatus.hidden = !message;
+    chatGPTStatus.dataset.error = String(!!isError);
+  }
+
+  function importChatGPTShare() {
+    if (formKind.value !== 'image' || chatGPTImportButton && chatGPTImportButton.disabled) return;
+    if (!chatGPTUrl || !chatGPTImportButton || !window.EstChatGPTShare) {
+      setChatGPTStatus(language === 'en' ? 'The share parser is unavailable.' : '分享链接解析功能暂不可用。', true);
+      return;
+    }
+    setFormError('');
+    setChatGPTStatus(language === 'en' ? 'Reading the public share…' : '正在读取公开分享页……', false);
+    chatGPTImportButton.disabled = true;
+    var originalLabel = chatGPTImportButton.textContent;
+    var requestId = ++chatGPTImportRequest;
+    chatGPTImportButton.textContent = language === 'en' ? 'Importing…' : '正在解析……';
+    window.EstChatGPTShare.fetch(chatGPTUrl.value).then(function (shared) {
+      if (requestId !== chatGPTImportRequest || !dialog.open || formKind.value !== 'image') return;
+      document.getElementById('prompt-title').value = shared.title.slice(0, 80);
+      document.getElementById('prompt-content').value = shared.prompt;
+      var category = document.getElementById('prompt-form-category');
+      if (!category.value.trim()) category.value = '绘画';
+      var tags = document.getElementById('prompt-tags');
+      var currentTags = tags.value.split(/[,，]/).map(function (tag) { return tag.trim(); }).filter(Boolean);
+      if (currentTags.indexOf('ChatGPT') === -1) currentTags.push('ChatGPT');
+      tags.value = currentTags.join('，');
+      var description = document.getElementById('prompt-description');
+      if (!description.value.trim()) description.value = language === 'en' ? 'Imported from a public ChatGPT image share.' : '从 ChatGPT 公开绘画分享页导入。';
+      formPart.value = shared.promptPart;
+      formModel.value = shared.model;
+      formSyntax.value = shared.syntax;
+      if (shared.imageUrl && !state.formImages.existing.some(function (image) { return image.url === shared.imageUrl; })) {
+        state.formImages.existing.unshift({ url: shared.imageUrl, name: shared.title, alt: shared.title });
+        state.formImages.existing = state.formImages.existing.slice(0, 8);
+        renderFormImages();
+      }
+      setChatGPTStatus(language === 'en' ? 'Imported. Review the fields, then save.' : '解析完成，请检查内容后保存。', false);
+      document.getElementById('prompt-content').focus();
+    }).catch(function (error) {
+      if (requestId !== chatGPTImportRequest || !dialog.open) return;
+      setChatGPTStatus(language === 'en' ? 'Could not parse this public image-share link.' : error.message || '无法解析这个分享链接。', true);
+    }).finally(function () {
+      if (requestId !== chatGPTImportRequest) return;
+      chatGPTImportButton.disabled = false;
+      chatGPTImportButton.textContent = originalLabel;
+    });
   }
 
   function toggleImageFields() {
@@ -1155,6 +1214,8 @@
     '公开共享保存的是当前版本；修改后可点击「更新共享」。撤回后大厅不再展示，其他人已经收藏的副本仍会保留。': 'Sharing publishes a snapshot. Use Update shared copy after editing. Unsharing removes it from the community; copies already saved by others remain.',
     '未登录 · 仅当前浏览器': 'Signed out · saved on this browser', '登录后可在不同浏览器之间同步提示词。': 'Sign in to sync your library across browsers.',
     '绘画提示词组成': 'Prompt component', '可直接使用的完整提示词': 'Complete prompt', '完整提示词': 'Complete prompt',
+    'ChatGPT 分享链接': 'ChatGPT share link', '解析并填充': 'Import fields',
+    '仅支持公开的绘画分享链接；链接会通过 r.jina.ai 只读网页解析服务读取。': 'Public image-share links only. The read-only r.jina.ai service retrieves the shared page.',
     '画风': 'Style', '角色': 'Character', '动作': 'Action', '服装': 'Clothing', '自然语言': 'Natural language', 'Danbooru 标签': 'Danbooru tags', '混合格式': 'Mixed', '其他': 'Other',
     '登录后图片会保存到云端；单张不超过 8 MB，最多 8 张。': 'Sign in to upload up to 8 images, each no larger than 8 MB.',
     '输入邮箱后，我们会发送一封登录链接。无需设置密码。': 'Enter your email to receive a sign-in link. No password needed.',
@@ -1461,6 +1522,13 @@
     state.formImages.pending = state.formImages.pending.concat(accepted);
     imageInput.value = '';
     renderFormImages();
+  });
+
+  if (chatGPTImportButton) chatGPTImportButton.addEventListener('click', importChatGPTShare);
+  if (chatGPTUrl) chatGPTUrl.addEventListener('keydown', function (event) {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    importChatGPTShare();
   });
 
   form.addEventListener('submit', async function (event) {

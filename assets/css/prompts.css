@@ -118,6 +118,10 @@
 }
 
 .prompt-form__hint { margin: -1px 0 0; color: #8298a6; font-size: 0.74rem; line-height: 1.45; }
+.prompt-link-import { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 9px; align-items: center; }
+.prompt-link-import .button { min-height: 42px; }
+.prompt-form__status { margin: 0; color: #a9e0c0; font-size: 0.78rem; line-height: 1.45; }
+.prompt-form__status[data-error="true"] { color: #ffb9bd; }
 .prompt-image-preview { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .prompt-image-preview:empty { display: none; }
 .prompt-image-preview__item { position: relative; min-width: 0; padding: 7px; border: 1px solid #466274; border-radius: 9px; color: #c5d7e1; background: #152836; font-size: 0.72rem; }
@@ -443,6 +447,7 @@
   .prompt-form { padding: 20px; }
   .prompt-form__grid { grid-template-columns: 1fr; gap: 14px; }
   .prompt-form__field--wide { grid-column: auto; }
+  .prompt-link-import { grid-template-columns: 1fr; }
   .prompt-form__footer .button { flex: 1; }
   .prompt-category-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .prompt-card__images,

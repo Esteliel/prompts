@@ -1,8 +1,9 @@
 ---
 title: 提示词管理 · Esteliel
 description: 跨浏览器同步的个人提示词管理工具。
-stylesheet: /assets/css/prompts.css?v=10
-script: /assets/js/prompts.js?v=14
+stylesheet: /assets/css/prompts.css?v=11
+script: /assets/js/prompts.js?v=15
+chatgpt_share_parser: true
 supabase: true
 wide: true
 ---
@@ -140,6 +141,15 @@ wide: true
           <option value="text">普通提示词</option>
           <option value="image">绘画提示词</option>
         </select>
+      </div>
+      <div class="prompt-form__field prompt-form__field--wide prompt-image-field">
+        <label for="prompt-chatgpt-url">ChatGPT 分享链接</label>
+        <div class="prompt-link-import">
+          <input id="prompt-chatgpt-url" type="text" inputmode="url" maxlength="1000" aria-describedby="prompt-chatgpt-hint prompt-chatgpt-status" placeholder="粘贴 https://chatgpt.com/s/p_…">
+          <button id="prompt-chatgpt-import" class="button button--quiet" type="button">解析并填充</button>
+        </div>
+        <p id="prompt-chatgpt-hint" class="prompt-form__hint">仅支持公开的绘画分享链接；链接会通过 r.jina.ai 只读网页解析服务读取。</p>
+        <p id="prompt-chatgpt-status" class="prompt-form__status" role="status" hidden></p>
       </div>
       <div class="prompt-form__field">
         <label for="prompt-form-category">分类</label>
